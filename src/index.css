@@ -1,0 +1,375 @@
+@import "tailwindcss";
+
+@layer base {
+  :root, [data-palette="turquoise"] {
+    --primary: #26788E;
+    --primary-hover: #1d6173;
+    --primary-light: rgba(164, 204, 212, 0.25);
+    --primary-text: #26788E;
+    --primary-border: rgba(255, 255, 255, 0.72);
+    --primary-glow: rgba(38, 120, 142, 0.30);
+
+    --accent-amber: #E2480C;
+    --accent-amber-hover: #be3c09;
+    --accent-amber-light: rgba(226, 72, 12, 0.14);
+    --accent-amber-border: rgba(226, 72, 12, 0.45);
+
+    --deep-navy: #304C64;
+    --seafoam: #A4CCD4;
+    --mahogany: #631B08;
+
+    --canvas-bg: #e7f0f5;
+    --card-bg: rgba(255, 255, 255, 0.28);
+    --card-border: rgba(255, 255, 255, 0.72);
+    --badge-bg: rgba(255, 255, 255, 0.36);
+    --badge-text: #26788E;
+    --bus-marker: #E2480C;
+    --route-line: #26788E;
+
+    --glass-surface: rgba(255, 255, 255, 0.28);
+    --glass-surface-elevated: rgba(255, 255, 255, 0.40);
+    --glass-rim: rgba(255, 255, 255, 0.92);
+    --glass-border: rgba(255, 255, 255, 0.70);
+    --glass-shadow: 0 10px 30px -8px rgba(48, 76, 100, 0.10), 0 2px 6px -2px rgba(48, 76, 100, 0.04);
+  }
+
+  [data-palette="amber"] {
+    --primary: #d97706;
+    --primary-hover: #b45309;
+    --primary-light: rgba(254, 243, 199, 0.35);
+    --primary-text: #92400e;
+    --primary-border: rgba(255, 255, 255, 0.72);
+    --primary-glow: rgba(245, 158, 11, 0.30);
+    --accent-amber: #d97706;
+    --deep-navy: #1e293b;
+    --seafoam: #fef3c7;
+    --mahogany: #78350f;
+    --canvas-bg: #f6f1e9;
+    --card-bg: rgba(255, 255, 255, 0.30);
+    --card-border: rgba(255, 255, 255, 0.72);
+    --badge-bg: rgba(255, 255, 255, 0.36);
+    --badge-text: #92400e;
+    --bus-marker: #f59e0b;
+    --route-line: #d97706;
+  }
+
+  [data-palette="azure"] {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-light: rgba(219, 234, 254, 0.35);
+    --primary-text: #1e40af;
+    --primary-border: rgba(255, 255, 255, 0.72);
+    --primary-glow: rgba(37, 99, 235, 0.30);
+    --accent-amber: #f59e0b;
+    --canvas-bg: #edf2f9;
+    --card-bg: rgba(255, 255, 255, 0.30);
+    --card-border: rgba(255, 255, 255, 0.72);
+    --badge-bg: rgba(255, 255, 255, 0.36);
+    --badge-text: #1e40af;
+    --bus-marker: #2563eb;
+    --route-line: #2563eb;
+  }
+
+  [data-palette="emerald"] {
+    --primary: #059669;
+    --primary-hover: #047857;
+    --primary-light: rgba(209, 250, 229, 0.35);
+    --primary-text: #065f46;
+    --primary-border: rgba(255, 255, 255, 0.72);
+    --primary-glow: rgba(5, 150, 105, 0.30);
+    --accent-amber: #d97706;
+    --canvas-bg: #eaf5ef;
+    --card-bg: rgba(255, 255, 255, 0.30);
+    --card-border: rgba(255, 255, 255, 0.72);
+    --badge-bg: rgba(255, 255, 255, 0.36);
+    --badge-text: #065f46;
+    --bus-marker: #059669;
+    --route-line: #059669;
+  }
+
+  [data-palette="coral"] {
+    --primary: #e11d48;
+    --primary-hover: #be123c;
+    --primary-light: rgba(255, 228, 230, 0.35);
+    --primary-text: #9f1239;
+    --primary-border: rgba(255, 255, 255, 0.72);
+    --primary-glow: rgba(225, 29, 72, 0.30);
+    --accent-amber: #f59e0b;
+    --canvas-bg: #f8eff1;
+    --card-bg: rgba(255, 255, 255, 0.30);
+    --card-border: rgba(255, 255, 255, 0.72);
+    --badge-bg: rgba(255, 255, 255, 0.36);
+    --badge-text: #9f1239;
+    --bus-marker: #e11d48;
+    --route-line: #e11d48;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--canvas-bg);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    user-select: none;
+    overscroll-behavior: contain;
+    transition: background-color 0.3s ease;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  input, textarea, select, button {
+    font-family: inherit;
+    user-select: auto;
+  }
+
+  .tracking-tight {
+    letter-spacing: 0em;
+  }
+}
+
+/* Custom Google Maps bus marker animations */
+
+.custom-bus-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.custom-pulse-ring {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: 2px solid var(--primary);
+  animation: iosPing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes iosPing {
+  75%, 100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(48, 76, 100, 0.22);
+  border-radius: 9999px;
+}
+
+/* =========================================================
+   CLEAR LIQUID GLASS DESIGN SYSTEM
+   ========================================================= */
+.liquid-glass,
+.ios26-glass,
+.clear-glass-card {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.22) 100%);
+  backdrop-filter: blur(22px) saturate(200%) contrast(104%);
+  -webkit-backdrop-filter: blur(22px) saturate(200%) contrast(104%);
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  box-shadow:
+    0 10px 28px -8px rgba(48, 76, 100, 0.12),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 1.5px 0 rgba(164, 204, 212, 0.22);
+}
+
+.liquid-glass-elevated {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78) 0%, rgba(244, 249, 252, 0.62) 100%);
+  backdrop-filter: blur(28px) saturate(210%);
+  -webkit-backdrop-filter: blur(28px) saturate(210%);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 18px 40px -10px rgba(48, 76, 100, 0.20),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.96);
+}
+
+.ios26-lens-bead,
+.liquid-glass-pill {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.18) 100%);
+  backdrop-filter: blur(18px) saturate(195%);
+  -webkit-backdrop-filter: blur(18px) saturate(195%);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 4px 14px -3px rgba(48, 76, 100, 0.08),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* Clear Glass Buttons */
+.clear-glass-btn {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.16) 100%);
+  backdrop-filter: blur(18px) saturate(200%);
+  -webkit-backdrop-filter: blur(18px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 4px 14px -3px rgba(48, 76, 100, 0.09),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px 0 rgba(164, 204, 212, 0.18);
+  color: #1e3547;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, box-shadow 0.18s ease;
+  cursor: pointer;
+}
+.clear-glass-btn:hover {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.56) 0%, rgba(255, 255, 255, 0.26) 100%);
+  border-color: rgba(255, 255, 255, 0.95);
+}
+.clear-glass-btn:active {
+  transform: scale(0.97);
+}
+
+/* Primary Tinted Clear Glass Button */
+.clear-glass-btn-primary {
+  background: linear-gradient(135deg, rgba(38, 120, 142, 0.52) 0%, rgba(48, 76, 100, 0.38) 100%);
+  backdrop-filter: blur(20px) saturate(220%);
+  -webkit-backdrop-filter: blur(20px) saturate(220%);
+  border: 1px solid rgba(255, 255, 255, 0.80);
+  box-shadow:
+    0 6px 20px -4px rgba(38, 120, 142, 0.30),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1.5px 2px 0 rgba(20, 62, 74, 0.35);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(15, 38, 48, 0.45);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease, box-shadow 0.18s ease;
+  cursor: pointer;
+}
+.clear-glass-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(38, 120, 142, 0.64) 0%, rgba(48, 76, 100, 0.48) 100%);
+  border-color: rgba(255, 255, 255, 0.95);
+}
+.clear-glass-btn-primary:active {
+  transform: scale(0.97);
+}
+
+/* Amber Tinted Clear Glass Button */
+.clear-glass-btn-amber {
+  background: linear-gradient(135deg, rgba(226, 72, 12, 0.54) 0%, rgba(168, 46, 8, 0.40) 100%);
+  backdrop-filter: blur(20px) saturate(220%);
+  -webkit-backdrop-filter: blur(20px) saturate(220%);
+  border: 1px solid rgba(255, 224, 208, 0.82);
+  box-shadow:
+    0 6px 20px -4px rgba(226, 72, 12, 0.32),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1.5px 2px 0 rgba(99, 27, 8, 0.38);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(60, 15, 5, 0.45);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease;
+  cursor: pointer;
+}
+.clear-glass-btn-amber:hover {
+  background: linear-gradient(135deg, rgba(226, 72, 12, 0.66) 0%, rgba(168, 46, 8, 0.50) 100%);
+}
+.clear-glass-btn-amber:active {
+  transform: scale(0.97);
+}
+
+/* Navy Tinted Clear Glass Button */
+.clear-glass-btn-navy {
+  background: linear-gradient(135deg, rgba(48, 76, 100, 0.56) 0%, rgba(28, 46, 62, 0.44) 100%);
+  backdrop-filter: blur(20px) saturate(210%);
+  -webkit-backdrop-filter: blur(20px) saturate(210%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 6px 20px -4px rgba(48, 76, 100, 0.30),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.80);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(10, 20, 30, 0.45);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s ease;
+  cursor: pointer;
+}
+.clear-glass-btn-navy:hover {
+  background: linear-gradient(135deg, rgba(48, 76, 100, 0.68) 0%, rgba(28, 46, 62, 0.54) 100%);
+}
+.clear-glass-btn-navy:active {
+  transform: scale(0.97);
+}
+
+/* Emerald Tinted Clear Glass Button */
+.clear-glass-btn-emerald {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.28) 0%, rgba(5, 150, 105, 0.16) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.85);
+  color: #064e3b;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+.clear-glass-btn-emerald.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.60) 0%, rgba(5, 150, 105, 0.45) 100%);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(6, 78, 59, 0.45);
+  box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.32), inset 0 1px 1.5px rgba(255, 255, 255, 0.85);
+}
+
+/* Rose Tinted Clear Glass Button */
+.clear-glass-btn-rose {
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.18) 0%, rgba(190, 18, 60, 0.10) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.85);
+  color: #881337;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+.clear-glass-btn-rose.active {
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.58) 0%, rgba(190, 18, 60, 0.44) 100%);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(136, 19, 55, 0.45);
+  box-shadow: 0 4px 12px -2px rgba(225, 29, 72, 0.28), inset 0 1px 1.5px rgba(255, 255, 255, 0.85);
+}
+
+/* Clear Glass Input Field */
+.clear-glass-input {
+  background: rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(18px) saturate(190%);
+  -webkit-backdrop-filter: blur(18px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1.5px 2px 0 rgba(48, 76, 100, 0.05);
+  color: #1e3547;
+  transition: all 0.18s ease;
+}
+.clear-glass-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.48);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(38, 120, 142, 0.22);
+}
+
+.ios26-chromatic-rim {
+  position: relative;
+}
+.ios26-chromatic-rim::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(115deg, rgba(164, 204, 212, 0.75) 0%, rgba(255, 255, 255, 0.92) 30%, rgba(38, 120, 142, 0.45) 65%, rgba(226, 72, 12, 0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.ios26-blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgba(48, 76, 100, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(48, 76, 100, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}

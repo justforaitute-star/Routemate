@@ -1,0 +1,476 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Map as GoogleMap,
+  AdvancedMarker,
+  InfoWindow,
+  useMap,
+  useApiLoadingStatus,
+  APILoadingStatus,
+} from '@vis.gl/react-google-maps';
+import { Bus, BusLocation, BusRoute, RouteStop, Student } from '../../types';
+import { Navigation, Maximize2, Layers, AlertCircle, MapPin } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+
+const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+interface LiveBusMapProps {
+  bus?: Bus;
+  location?: BusLocation;
+  route?: BusRoute;
+  highlightStopId?: string;
+  assignedStudent?: Student;
+  isStale?: boolean;
+  className?: string;
+  showControls?: boolean;
+  isInteractive?: boolean;
+}
+
+const paletteColors: Record<string, { route: string; marker: string; light: string; ring: string }> = {
+  turquoise: { route: '#26788E', marker: '#E2480C', light: '#A4CCD4', ring: '#E2480C' },
+  amber: { route: '#d97706', marker: '#f59e0b', light: '#fef3c7', ring: '#fde68a' },
+  azure: { route: '#2563eb', marker: '#2563eb', light: '#dbeafe', ring: '#bfdbfe' },
+  emerald: { route: '#059669', marker: '#059669', light: '#d1fae5', ring: '#a7f3d0' },
+  coral: { route: '#e11d48', marker: '#e11d48', light: '#ffe4e6', ring: '#fecdd3' },
+};
+
+interface MapOverlaysProps {
+  route?: BusRoute;
+  location?: BusLocation;
+  highlightStopId?: string;
+  routeColor: string;
+  lightColor: string;
+  onMapReady: (map: google.maps.Map | null) => void;
+}
+
+const MapOverlays: React.FC<MapOverlaysProps> = ({
+  route,
+  location,
+  highlightStopId,
+  routeColor,
+  lightColor,
+  onMapReady,
+}) => {
+  const map = useMap();
+  const routeOutlineRef = useRef<google.maps.Polyline | null>(null);
+  const routePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const geofenceCircleRef = useRef<google.maps.Circle | null>(null);
+  const accuracyCircleRef = useRef<google.maps.Circle | null>(null);
+  const hasFittedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    onMapReady(map);
+    return () => onMapReady(null);
+  }, [map, onMapReady]);
+
+  // Draw Route Polyline and Highlighted Stop Geofence Circle
+  useEffect(() => {
+    if (!map || typeof google === 'undefined' || !google.maps) return;
+
+    if (routeOutlineRef.current) {
+      routeOutlineRef.current.setMap(null);
+      routeOutlineRef.current = null;
+    }
+    if (routePolylineRef.current) {
+      routePolylineRef.current.setMap(null);
+      routePolylineRef.current = null;
+    }
+    if (geofenceCircleRef.current) {
+      geofenceCircleRef.current.setMap(null);
+      geofenceCircleRef.current = null;
+    }
+
+    if (!route) return;
+
+    const rawCoords =
+      route.waypoints && route.waypoints.length > 0
+        ? route.waypoints
+        : route.stops.map((s) => [s.latitude, s.longitude] as [number, number]);
+
+    const path = rawCoords.map(([lat, lng]) => ({ lat, lng }));
+
+    if (path.length > 1) {
+      routeOutlineRef.current = new google.maps.Polyline({
+        path,
+        strokeColor: '#ffffff',
+        strokeOpacity: 0.78,
+        strokeWeight: 7,
+        zIndex: 1,
+        map,
+      });
+
+      routePolylineRef.current = new google.maps.Polyline({
+        path,
+        strokeColor: routeColor,
+        strokeOpacity: 0.94,
+        strokeWeight: 4.5,
+        zIndex: 2,
+        map,
+      });
+
+      if (!hasFittedRef.current) {
+        const bounds = new google.maps.LatLngBounds();
+        path.forEach((pt) => bounds.extend(pt));
+        if (location) {
+          bounds.extend({ lat: location.latitude, lng: location.longitude });
+        }
+        map.fitBounds(bounds, 36);
+        hasFittedRef.current = true;
+      }
+    }
+
+    const highlightedStop = route.stops.find((s) => s.id === highlightStopId);
+    if (highlightedStop) {
+      geofenceCircleRef.current = new google.maps.Circle({
+        center: { lat: highlightedStop.latitude, lng: highlightedStop.longitude },
+        radius: 1000,
+        strokeColor: routeColor,
+        strokeOpacity: 0.65,
+        strokeWeight: 1.5,
+        fillColor: lightColor,
+        fillOpacity: 0.16,
+        clickable: false,
+        map,
+      });
+    }
+
+    return () => {
+      routeOutlineRef.current?.setMap(null);
+      routePolylineRef.current?.setMap(null);
+      geofenceCircleRef.current?.setMap(null);
+    };
+  }, [map, route, highlightStopId, routeColor, lightColor]);
+
+  // Update GPS accuracy circle around live bus
+  useEffect(() => {
+    if (!map || !location || typeof google === 'undefined' || !google.maps) return;
+
+    const center = { lat: location.latitude, lng: location.longitude };
+    const radius = Math.max(8, location.accuracy || 10);
+
+    if (!accuracyCircleRef.current) {
+      accuracyCircleRef.current = new google.maps.Circle({
+        center,
+        radius,
+        strokeColor: routeColor,
+        strokeOpacity: 0.7,
+        strokeWeight: 1,
+        fillColor: lightColor,
+        fillOpacity: 0.22,
+        clickable: false,
+        map,
+      });
+    } else {
+      accuracyCircleRef.current.setCenter(center);
+      accuracyCircleRef.current.setRadius(radius);
+      accuracyCircleRef.current.setOptions({
+        strokeColor: routeColor,
+        fillColor: lightColor,
+      });
+    }
+  }, [map, location, routeColor, lightColor]);
+
+  useEffect(() => {
+    return () => {
+      accuracyCircleRef.current?.setMap(null);
+      accuracyCircleRef.current = null;
+    };
+  }, []);
+
+  return null;
+};
+
+const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
+  bus,
+  location,
+  route,
+  highlightStopId,
+  isStale = false,
+  className = 'h-56 w-full',
+  showControls = true,
+  isInteractive = true,
+}) => {
+  const { colorPalette } = useApp();
+  const currentColors = paletteColors[colorPalette] || paletteColors.turquoise;
+  const apiStatus = useApiLoadingStatus();
+
+  const [activeTileLayer, setActiveTileLayer] = useState<'streets' | 'satellite'>('streets');
+  const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
+  const [busInfoOpen, setBusInfoOpen] = useState<boolean>(false);
+  const mapRef = useRef<google.maps.Map | null>(null);
+
+  useEffect(() => {
+    if (
+      apiStatus === APILoadingStatus.AUTH_FAILURE ||
+      apiStatus === APILoadingStatus.FAILED
+    ) {
+      window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
+    }
+  }, [apiStatus]);
+
+  const initialCenter = {
+    lat: location?.latitude || route?.stops[0]?.latitude || 37.7749,
+    lng: location?.longitude || route?.stops[0]?.longitude || -122.4194,
+  };
+
+  const recenterOnBus = () => {
+    if (!mapRef.current || !location) return;
+    mapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
+    mapRef.current.setZoom(15);
+  };
+
+  const fitRouteBounds = () => {
+    if (!mapRef.current || !route || typeof google === 'undefined') return;
+    const bounds = new google.maps.LatLngBounds();
+    route.stops.forEach((s) => bounds.extend({ lat: s.latitude, lng: s.longitude }));
+    route.waypoints?.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
+    if (location) {
+      bounds.extend({ lat: location.latitude, lng: location.longitude });
+    }
+    if (!bounds.isEmpty()) {
+      mapRef.current.fitBounds(bounds, 32);
+    }
+  };
+
+  if (
+    apiStatus === APILoadingStatus.AUTH_FAILURE ||
+    apiStatus === APILoadingStatus.FAILED
+  ) {
+    return (
+      <div
+        data-testid="live-bus-map-fallback"
+        className={`relative rounded-2xl overflow-hidden border border-white/70 shadow-sm clear-glass-card flex flex-col items-center justify-center p-4 text-center ${className}`}
+      >
+        <MapPin className="w-6 h-6 text-[#26788E] mb-1.5" />
+        <p className="text-xs font-extrabold text-[#304C64]">Google Maps Quota Limit Reached</p>
+        <p className="text-[11px] font-medium text-slate-600 mt-0.5 max-w-xs">
+          Live GPS telemetry remains active. Switch to your own Maps key in Cloud Console to restore map tiles.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid="live-bus-map"
+      className={`relative rounded-2xl overflow-hidden border border-white/70 shadow-sm ${className}`}
+    >
+      <GoogleMap
+        mapId="DEMO_MAP_ID"
+        defaultCenter={initialCenter}
+        defaultZoom={14}
+        mapTypeId={activeTileLayer === 'satellite' ? 'hybrid' : 'roadmap'}
+        gestureHandling={isInteractive ? 'greedy' : 'none'}
+        disableDefaultUI
+        internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+        className="w-full h-full"
+      >
+        <MapOverlays
+          route={route}
+          location={location}
+          highlightStopId={highlightStopId}
+          routeColor={currentColors.route}
+          lightColor={currentColors.light}
+          onMapReady={(m) => {
+            mapRef.current = m;
+          }}
+        />
+
+        {/* Route Stop Markers */}
+        {route?.stops.map((stop, index) => {
+          const isHighlighted = stop.id === highlightStopId;
+          const isLastStop = index === route.stops.length - 1;
+          return (
+            <AdvancedMarker
+              key={stop.id}
+              position={{ lat: stop.latitude, lng: stop.longitude }}
+              title={stop.name}
+              onClick={() => {
+                setBusInfoOpen(false);
+                setSelectedStop(stop);
+              }}
+            >
+              <div className="relative flex flex-col items-center">
+                {isHighlighted && (
+                  <div
+                    className="absolute -inset-1.5 rounded-full animate-ping opacity-30"
+                    style={{ backgroundColor: currentColors.marker }}
+                  />
+                )}
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shadow-md border-2 border-white ${
+                    isHighlighted
+                      ? 'text-white scale-110'
+                      : isLastStop
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-800 text-white'
+                  }`}
+                  style={isHighlighted ? { backgroundColor: currentColors.marker } : undefined}
+                >
+                  {isLastStop ? '🏫' : isHighlighted ? '★' : stop.sequenceOrder}
+                </div>
+                <span
+                  className={`mt-0.5 whitespace-nowrap px-1.5 py-0 rounded-full text-[9px] font-bold shadow-xs ${
+                    isHighlighted
+                      ? 'text-white'
+                      : 'bg-white/95 text-slate-700 border border-slate-200/80'
+                  }`}
+                  style={isHighlighted ? { backgroundColor: currentColors.marker } : undefined}
+                >
+                  {stop.name.split('&')[0].trim()}
+                </span>
+              </div>
+            </AdvancedMarker>
+          );
+        })}
+
+        {/* Selected Stop InfoWindow */}
+        {selectedStop && (
+          <InfoWindow
+            position={{ lat: selectedStop.latitude, lng: selectedStop.longitude }}
+            onCloseClick={() => setSelectedStop(null)}
+          >
+            <div className="text-slate-900 px-1 py-0.5 min-w-[140px]">
+              <p className="text-xs font-extrabold">{selectedStop.name}</p>
+              <p className="text-[11px] text-slate-600">{selectedStop.address}</p>
+              <p className="text-[11px] font-bold text-[#26788E] mt-1">
+                Stop #{selectedStop.sequenceOrder} · {selectedStop.scheduledTime}
+              </p>
+            </div>
+          </InfoWindow>
+        )}
+
+        {/* Live Bus AdvancedMarker */}
+        {location && (
+          <AdvancedMarker
+            position={{ lat: location.latitude, lng: location.longitude }}
+            zIndex={50}
+            title={`${bus?.busNumber || 'School Bus'} (${Math.round(location.speed)} km/h)`}
+            onClick={() => {
+              setSelectedStop(null);
+              setBusInfoOpen((v) => !v);
+            }}
+          >
+            <div className="relative flex flex-col items-center">
+              <div className="mb-1 bg-slate-900/90 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-xs">
+                {bus?.busNumber || 'Bus'} · {Math.round(location.speed)} km/h
+              </div>
+              <div
+                className="relative flex items-center justify-center"
+                style={{ transform: `rotate(${location.heading || 0}deg)` }}
+              >
+                {!isStale && <div className="custom-pulse-ring" />}
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-lg border-2 border-white text-white ${
+                    isStale ? 'bg-amber-500' : ''
+                  }`}
+                  style={!isStale ? { backgroundColor: currentColors.marker } : undefined}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M8 6v6" />
+                    <path d="M15 6v6" />
+                    <path d="M2 12h19.6" />
+                    <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5.3C20.1 6.6 19.2 6 18.2 6H5.8C4.8 6 3.9 6.6 3.6 7.5L2.2 12.8c-.1.4-.2.8-.2 1.2 0 .4.1.8.2 1.2.3 1.1.8 2.8.8 2.8h3" />
+                    <circle cx="7" cy="18" r="2" />
+                    <path d="M9 18h5" />
+                    <circle cx="16" cy="18" r="2" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        )}
+
+        {/* Live Bus InfoWindow */}
+        {busInfoOpen && location && (
+          <InfoWindow
+            position={{ lat: location.latitude, lng: location.longitude }}
+            onCloseClick={() => setBusInfoOpen(false)}
+          >
+            <div className="text-slate-900 px-1 py-0.5 min-w-[140px]">
+              <p className="text-xs font-extrabold">{bus?.busNumber || 'School Bus'}</p>
+              <p className="text-[11px] text-slate-600">{bus?.model || route?.name}</p>
+              <p className="text-[11px] font-bold text-[#26788E] mt-1">
+                {Math.round(location.speed)} km/h · ±{Math.round(location.accuracy)}m GPS
+              </p>
+            </div>
+          </InfoWindow>
+        )}
+      </GoogleMap>
+
+      {isStale && (
+        <div className="absolute top-12 left-2.5 z-10 max-w-[calc(100%-6rem)] clear-glass-btn-amber px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-semibold">
+          <AlertCircle className="w-3 h-3 shrink-0" />
+          <span className="truncate">Last known location</span>
+        </div>
+      )}
+
+      {showControls && (
+        <div className="absolute top-2.5 right-2.5 z-10 flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={recenterOnBus}
+            title="Recenter on Bus"
+            aria-label="Recenter on Bus"
+            className="w-7 h-7 rounded-full clear-glass-btn flex items-center justify-center text-[#304C64]"
+          >
+            <Navigation className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={fitRouteBounds}
+            title="Fit Entire Route"
+            aria-label="Fit Entire Route"
+            className="w-7 h-7 rounded-full clear-glass-btn flex items-center justify-center text-[#304C64]"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setActiveTileLayer((prev) => (prev === 'streets' ? 'satellite' : 'streets'))
+            }
+            title="Switch Map Style"
+            aria-label="Switch Map Style"
+            className="w-7 h-7 rounded-full clear-glass-btn flex items-center justify-center text-[#304C64]"
+          >
+            <Layers className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const LiveBusMap: React.FC<LiveBusMapProps> = (props) => {
+  if (!MAPS_API_KEY) {
+    return (
+      <div
+        data-testid="live-bus-map"
+        className={`relative rounded-2xl overflow-hidden border border-white/70 shadow-sm clear-glass-card flex flex-col items-center justify-center p-4 text-center ${
+          props.className || 'h-56 w-full'
+        }`}
+      >
+        <MapPin className="w-6 h-6 text-[#26788E] mb-1.5" />
+        <p className="text-xs font-extrabold text-[#304C64]">
+          {props.bus?.busNumber || 'School Bus'} · {props.route?.name || 'Live Telemetry Ready'}
+        </p>
+        <p className="text-[11px] font-medium text-slate-600 mt-0.5 max-w-xs">
+          Google Maps key pending runtime injection. Speed:{' '}
+          {Math.round(props.location?.speed || 0)} km/h · Stops: {props.route?.stops.length || 0}
+        </p>
+      </div>
+    );
+  }
+
+  return <GoogleBusMapCanvas {...props} />;
+};

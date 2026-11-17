@@ -1,0 +1,11 @@
+{
+  "name": "RouteMate - School Bus Tracking & Safety System",
+  "description": "Production-ready school bus tracking platform for schools, bus drivers, students, and parents with live GPS, automated approaching-bus notifications, boarding confirmations, and fleet management.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
