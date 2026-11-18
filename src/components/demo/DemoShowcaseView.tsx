@@ -160,9 +160,9 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
             isInteractive
           />
 
-          {/* Compact Top-Left Clear Glass Corridor Summary (leaves Google Maps bottom attribution clear) */}
+          {/* Compact Top-Left Clear Glass Corridor Summary */}
           <div className="pointer-events-none absolute top-2.5 left-2.5 right-12 z-10 flex items-start">
-            <div className="clear-glass-card rounded-2xl px-3 py-2 max-w-xs shadow-md">
+            <div className="liquid-glass-elevated rounded-2xl px-3 py-2 max-w-xs shadow-md">
               <p className="text-xs font-extrabold text-[#304C64] truncate">
                 {activeBus?.busNumber || 'Bus 14'} · {activeRoute?.name || 'Route 14A'}
               </p>

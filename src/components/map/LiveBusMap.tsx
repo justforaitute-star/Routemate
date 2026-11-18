@@ -8,8 +8,9 @@ import {
   APILoadingStatus,
 } from '@vis.gl/react-google-maps';
 import { Bus, BusLocation, BusRoute, RouteStop, Student } from '../../types';
-import { Navigation, Maximize2, Layers, MapPin } from 'lucide-react';
+import { Navigation, Maximize2, Layers } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { InteractiveDemoMap } from './InteractiveDemoMap';
 
 const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -151,16 +152,44 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
   const [activeTileLayer, setActiveTileLayer] = useState<'streets' | 'satellite'>('streets');
   const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
   const [busInfoOpen, setBusInfoOpen] = useState<boolean>(false);
+  const [mapsFailed, setMapsFailed] = useState<boolean>(false);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (
       apiStatus === APILoadingStatus.AUTH_FAILURE ||
       apiStatus === APILoadingStatus.FAILED
     ) {
-      window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
+      setMapsFailed(true);
     }
   }, [apiStatus]);
+
+  useEffect(() => {
+    const win = window as any;
+    const prevAuthFailure = win.gm_authFailure;
+    win.gm_authFailure = () => {
+      setMapsFailed(true);
+      if (typeof prevAuthFailure === 'function') prevAuthFailure();
+    };
+    return () => {
+      win.gm_authFailure = prevAuthFailure;
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || mapsFailed) return;
+    const checkErr = () => {
+      if (el.querySelector('.gm-err-container')) {
+        setMapsFailed(true);
+      }
+    };
+    checkErr();
+    const observer = new MutationObserver(checkErr);
+    observer.observe(el, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [mapsFailed]);
 
   const initialCenter = {
     lat: location?.latitude || route?.stops[0]?.latitude || 37.7749,
@@ -187,25 +216,26 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
   };
 
   if (
+    mapsFailed ||
     apiStatus === APILoadingStatus.AUTH_FAILURE ||
     apiStatus === APILoadingStatus.FAILED
   ) {
     return (
-      <div
-        data-testid="live-bus-map-fallback"
-        className={`relative rounded-2xl overflow-hidden border border-white/70 shadow-sm clear-glass-card flex flex-col items-center justify-center p-4 text-center ${className}`}
-      >
-        <MapPin className="w-6 h-6 text-[#26788E] mb-1.5" />
-        <p className="text-xs font-extrabold text-[#304C64]">Google Maps Quota Limit Reached</p>
-        <p className="text-[11px] font-medium text-slate-600 mt-0.5 max-w-xs">
-          Switch to your own Google Cloud Maps key to restore interactive map tiles.
-        </p>
-      </div>
+      <InteractiveDemoMap
+        bus={bus}
+        location={location}
+        route={route}
+        highlightStopId={highlightStopId}
+        className={className}
+        showControls={showControls}
+        isInteractive={isInteractive}
+      />
     );
   }
 
   return (
     <div
+      ref={containerRef}
       data-testid="live-bus-map"
       className={`relative rounded-2xl overflow-hidden border border-white/70 shadow-sm ${className}`}
     >
@@ -386,22 +416,7 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
 
 export const LiveBusMap: React.FC<LiveBusMapProps> = (props) => {
   if (!MAPS_API_KEY) {
-    return (
-      <div
-        data-testid="live-bus-map"
-        className={`relative rounded-2xl overflow-hidden border border-white/70 shadow-sm clear-glass-card flex flex-col items-center justify-center p-4 text-center ${
-          props.className || 'h-56 w-full'
-        }`}
-      >
-        <MapPin className="w-6 h-6 text-[#26788E] mb-1.5" />
-        <p className="text-xs font-extrabold text-[#304C64]">
-          {props.bus?.busNumber || 'Bus 14'} · {props.route?.name || 'Oakridge Corridor'}
-        </p>
-        <p className="text-[11px] font-medium text-slate-600 mt-0.5 max-w-xs">
-          {props.route?.stops.length || 0} scheduled stops along corridor
-        </p>
-      </div>
-    );
+    return <InteractiveDemoMap {...props} />;
   }
 
   return <GoogleBusMapCanvas {...props} />;

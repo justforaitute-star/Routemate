@@ -18,6 +18,7 @@ import {
 import { playApproachingChime, playArrivalChime, playAlertChime, speakDriverGuidance } from '../utils/audioAlerts';
 import { showSystemNotification } from '../utils/pushNotifications';
 import { isLocationStale } from '../utils/eta';
+import { createClientDemoSeed } from '../data/demoSeed';
 
 interface AppContextType {
   school: School | null;
@@ -72,25 +73,20 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [schools, setSchools] = useState<School[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [buses, setBuses] = useState<Bus[]>([]);
-  const [routes, setRoutes] = useState<BusRoute[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [locations, setLocations] = useState<Record<string, BusLocation>>({});
-  const [boardingRecords, setBoardingRecords] = useState<BoardingRecord[]>([]);
-  const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
-  const [incidents, setIncidents] = useState<IncidentReport[]>([]);
+  const initialSeed = React.useMemo(() => createClientDemoSeed(), []);
+  const [schools, setSchools] = useState<School[]>(initialSeed.schools);
+  const [users, setUsers] = useState<UserProfile[]>(initialSeed.users);
+  const [buses, setBuses] = useState<Bus[]>(initialSeed.buses);
+  const [routes, setRoutes] = useState<BusRoute[]>(initialSeed.routes);
+  const [students, setStudents] = useState<Student[]>(initialSeed.students);
+  const [trips, setTrips] = useState<Trip[]>(initialSeed.trips);
+  const [locations, setLocations] = useState<Record<string, BusLocation>>(initialSeed.locations);
+  const [boardingRecords, setBoardingRecords] = useState<BoardingRecord[]>(initialSeed.boardingRecords);
+  const [notifications, setNotifications] = useState<NotificationEvent[]>(initialSeed.notifications);
+  const [incidents, setIncidents] = useState<IncidentReport[]>(initialSeed.incidents);
 
   const [currentRole, setCurrentRole] = useState<UserRole>('guardian');
-  const [currentUser, setCurrentUser] = useState<UserProfile>({
-    id: 'parent-1',
-    name: 'Sarah Jenkins',
-    email: 'sarah.j@example.com',
-    role: 'guardian',
-    schoolId: 'school-1',
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile>(initialSeed.users[0]);
 
   const [colorPalette, setColorPaletteState] = useState<ColorPalette>('turquoise');
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('duo');
@@ -119,6 +115,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const simulationTimerRef = useRef<any>(null);
   const gpsWatchIdRef = useRef<number | null>(null);
 
+  const [backendAvailable, setBackendAvailable] = useState<boolean>(false);
+
   // Fetch initial bootstrap data
   const fetchBootstrap = useCallback(async () => {
     try {
@@ -136,8 +134,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setNotifications(data.notifications || []);
       setIncidents(data.incidents || []);
       setNetworkStatus('connected');
+      setBackendAvailable(true);
     } catch {
-      setNetworkStatus('disconnected');
+      setBackendAvailable(false);
     }
   }, []);
 
@@ -155,8 +154,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentRole, users]);
 
-  // Real-time SSE Connection
+  // Real-time SSE Connection (only when backend API is active)
   useEffect(() => {
+    if (!backendAvailable) return;
     let es: EventSource | null = null;
     let reconnectTimeout: any = null;
 
@@ -217,7 +217,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const newNotifs: NotificationEvent[] = JSON.parse(event.data);
           setNotifications((prev) => [...newNotifs, ...prev]);
 
-          // Trigger sound and system notification for the current user
           newNotifs.forEach((n) => {
             if (n.type === 'approaching' || n.type === 'nearby') {
               playApproachingChime();
@@ -264,7 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       es?.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [fetchBootstrap]);
+  }, [backendAvailable, fetchBootstrap]);
 
   // Active Trip & Active Bus resolution
   const activeTrip = trips.find((t) => t.status === 'active' || t.status === 'paused') || trips[0];
@@ -357,11 +356,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     status: 'boarded' | 'absent' | 'dropped_off',
     driverNotes?: string
   ) => {
-    await fetch('/api/boarding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tripId, studentId, stopId, status, driverNotes }),
+    const optimisticRecord: BoardingRecord = {
+      id: `rec-local-${Date.now()}`,
+      tripId,
+      studentId,
+      stopId,
+      status,
+      timestamp: new Date().toISOString(),
+      driverNotes,
+    };
+    setBoardingRecords((prev) => {
+      const idx = prev.findIndex((r) => r.tripId === tripId && r.studentId === studentId);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = optimisticRecord;
+        return copy;
+      }
+      return [optimisticRecord, ...prev];
     });
+    try {
+      await fetch('/api/boarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId, studentId, stopId, status, driverNotes }),
+      });
+    } catch {
+      // Offline / static host fallback already applied optimistically
+    }
   };
 
   const reportIncident = async (payload: {
@@ -374,29 +395,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     severity?: any;
     delayMinutes?: number;
   }) => {
-    await fetch('/api/incidents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const nowIso = new Date().toISOString();
+    const delayMins = payload.delayMinutes || 0;
+    if (delayMins > 0) {
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === payload.tripId ? { ...t, delayMinutes: t.delayMinutes + delayMins, updatedAt: nowIso } : t
+        )
+      );
+    }
+    const localNotif: NotificationEvent = {
+      id: `notif-local-${Date.now()}`,
+      recipientUserId: 'parent-1',
+      recipientRole: 'guardian',
+      title: delayMins > 0 ? `Schedule Update (+${delayMins} min)` : 'Route Notice',
+      message: payload.message,
+      type: 'delay',
+      tripId: payload.tripId,
+      timestamp: nowIso,
+      isRead: false,
+      priority: 'high',
+    };
+    setNotifications((prev) => [localNotif, ...prev]);
+    try {
+      await fetch('/api/incidents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // Offline / static host fallback already applied optimistically
+    }
   };
 
   const markNotificationRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
-    await fetch('/api/notifications/mark-read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
+    try {
+      await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch {
+      // Static fallback
+    }
   };
 
   const resetDemoData = async () => {
-    await fetch('/api/reset-demo', { method: 'POST' });
+    const fresh = createClientDemoSeed();
+    setSchools(fresh.schools);
+    setUsers(fresh.users);
+    setBuses(fresh.buses);
+    setRoutes(fresh.routes);
+    setStudents(fresh.students);
+    setTrips(fresh.trips);
+    setLocations(fresh.locations);
+    setBoardingRecords(fresh.boardingRecords);
+    setNotifications(fresh.notifications);
+    setIncidents(fresh.incidents);
     simulationIndexRef.current = 1;
     setIsSimulationRunning(false);
-    await fetchBootstrap();
+    try {
+      const res = await fetch('/api/reset-demo', { method: 'POST' });
+      if (res.ok) await fetchBootstrap();
+    } catch {
+      // Static host fallback already reset local seed
+    }
   };
 
   const updateThresholds = async (thresholds: NotificationThresholds) => {
