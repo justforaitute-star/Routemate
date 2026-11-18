@@ -12,6 +12,8 @@ import {
   Check,
   Copy,
   ExternalLink,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { PaletteSelector } from './PaletteSelector';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
@@ -27,6 +29,21 @@ export const RoleAndDemoSheet: React.FC<RoleAndDemoSheetProps> = ({ isOpen, onCl
   const { currentRole, setCurrentRole, resetDemoData } = useApp();
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      const doc = document as any;
+      setIsFullscreen(Boolean(doc.fullscreenElement || doc.webkitFullscreenElement));
+    };
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -69,6 +86,26 @@ export const RoleAndDemoSheet: React.FC<RoleAndDemoSheetProps> = ({ isOpen, onCl
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback ignored if clipboard unavailable
+    }
+  };
+
+  const handleToggleFullscreen = async () => {
+    const doc = document as any;
+    const root = document.documentElement as any;
+    try {
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
+      } else if (root.requestFullscreen) {
+        await root.requestFullscreen();
+      } else if (root.webkitRequestFullscreen) {
+        root.webkitRequestFullscreen();
+      }
+    } catch {
+      // Ignore if fullscreen is blocked by browser/iframe permissions
     }
   };
 
@@ -220,18 +257,37 @@ export const RoleAndDemoSheet: React.FC<RoleAndDemoSheetProps> = ({ isOpen, onCl
           <PaletteSelector />
         </div>
 
-        {/* Reset Demo Data */}
-        <div className="pt-3 border-t border-white/50">
+        {/* Fullscreen & Reset Demo Controls */}
+        <div className="pt-3 border-t border-white/50 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="toggle-fullscreen-btn"
+            onClick={() => void handleToggleFullscreen()}
+            className="clear-glass-btn-primary min-h-[42px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap"
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Exit Fullscreen</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Fullscreen</span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => {
               void resetDemoData();
               onClose();
             }}
-            className="clear-glass-btn w-full flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-[#304C64] text-xs font-bold whitespace-nowrap"
+            className="clear-glass-btn min-h-[42px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-[#304C64] text-xs font-bold whitespace-nowrap"
           >
             <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-            <span>Reset Demo Data</span>
+            <span>Reset Demo</span>
           </button>
         </div>
 
