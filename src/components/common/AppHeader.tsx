@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Bus, Bell, SlidersHorizontal } from 'lucide-react';
+import { Bus, Bell, ChevronDown } from 'lucide-react';
 import { RoleAndDemoSheet } from './RoleAndDemoSheet';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
@@ -9,10 +9,17 @@ interface AppHeaderProps {
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({ onNotificationClick }) => {
-  const { school, notifications } = useApp();
+  const { school, notifications, currentUser, currentRole } = useApp();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const roleLabels: Record<string, string> = {
+    guardian: 'Parent',
+    student: 'Student',
+    driver: 'Driver',
+    admin: 'Admin',
+  };
 
   return (
     <>
@@ -28,22 +35,27 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onNotificationClick }) => 
                 RouteMate
               </h1>
               <p className="text-[10px] font-semibold text-slate-500 leading-none truncate mt-0.5">
-                {school?.name || 'Oakridge Community Academy'}
+                {school?.name || 'Oakridge Community Academy'} · {currentUser.name}
               </p>
             </div>
           </div>
 
-          {/* Right: Install Action, Customize Sheet & Alerts */}
+          {/* Right: Install Action, Account Switcher Sheet & Alerts */}
           <div className="flex items-center gap-1.5 shrink-0">
             <PWAInstallButton variant="header" />
             <button
               type="button"
               onClick={() => setIsSheetOpen(true)}
-              aria-label="Customize Demo and Theme"
+              data-testid="open-account-sheet"
+              aria-label="Account and Preferences"
               className="clear-glass-btn flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold text-[#304C64] whitespace-nowrap"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-[#26788E] shrink-0" />
-              <span>Theme</span>
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: 'var(--primary)' }}
+              />
+              <span>{roleLabels[currentRole] || 'Account'}</span>
+              <ChevronDown className="w-3 h-3 text-slate-500 shrink-0" />
             </button>
 
             <button
