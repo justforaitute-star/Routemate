@@ -8,7 +8,7 @@ import {
   APILoadingStatus,
 } from '@vis.gl/react-google-maps';
 import { Bus, BusLocation, BusRoute, RouteStop, Student } from '../../types';
-import { Navigation, Maximize2, Layers, AlertCircle, MapPin } from 'lucide-react';
+import { Navigation, Maximize2, Layers, MapPin } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
@@ -25,12 +25,12 @@ interface LiveBusMapProps {
   isInteractive?: boolean;
 }
 
-const paletteColors: Record<string, { route: string; marker: string; light: string; ring: string }> = {
-  turquoise: { route: '#26788E', marker: '#E2480C', light: '#A4CCD4', ring: '#E2480C' },
-  amber: { route: '#d97706', marker: '#f59e0b', light: '#fef3c7', ring: '#fde68a' },
-  azure: { route: '#2563eb', marker: '#2563eb', light: '#dbeafe', ring: '#bfdbfe' },
-  emerald: { route: '#059669', marker: '#059669', light: '#d1fae5', ring: '#a7f3d0' },
-  coral: { route: '#e11d48', marker: '#e11d48', light: '#ffe4e6', ring: '#fecdd3' },
+const paletteColors: Record<string, { route: string; marker: string; light: string }> = {
+  turquoise: { route: '#26788E', marker: '#E2480C', light: '#A4CCD4' },
+  amber: { route: '#d97706', marker: '#f59e0b', light: '#fef3c7' },
+  azure: { route: '#2563eb', marker: '#2563eb', light: '#dbeafe' },
+  emerald: { route: '#059669', marker: '#059669', light: '#d1fae5' },
+  coral: { route: '#e11d48', marker: '#e11d48', light: '#ffe4e6' },
 };
 
 interface MapOverlaysProps {
@@ -53,8 +53,7 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
   const map = useMap();
   const routeOutlineRef = useRef<google.maps.Polyline | null>(null);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const geofenceCircleRef = useRef<google.maps.Circle | null>(null);
-  const accuracyCircleRef = useRef<google.maps.Circle | null>(null);
+  const highlightCircleRef = useRef<google.maps.Circle | null>(null);
   const hasFittedRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -62,22 +61,15 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
     return () => onMapReady(null);
   }, [map, onMapReady]);
 
-  // Draw Route Polyline and Highlighted Stop Geofence Circle
   useEffect(() => {
     if (!map || typeof google === 'undefined' || !google.maps) return;
 
-    if (routeOutlineRef.current) {
-      routeOutlineRef.current.setMap(null);
-      routeOutlineRef.current = null;
-    }
-    if (routePolylineRef.current) {
-      routePolylineRef.current.setMap(null);
-      routePolylineRef.current = null;
-    }
-    if (geofenceCircleRef.current) {
-      geofenceCircleRef.current.setMap(null);
-      geofenceCircleRef.current = null;
-    }
+    routeOutlineRef.current?.setMap(null);
+    routePolylineRef.current?.setMap(null);
+    highlightCircleRef.current?.setMap(null);
+    routeOutlineRef.current = null;
+    routePolylineRef.current = null;
+    highlightCircleRef.current = null;
 
     if (!route) return;
 
@@ -92,7 +84,7 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
       routeOutlineRef.current = new google.maps.Polyline({
         path,
         strokeColor: '#ffffff',
-        strokeOpacity: 0.78,
+        strokeOpacity: 0.82,
         strokeWeight: 7,
         zIndex: 1,
         map,
@@ -120,14 +112,14 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
 
     const highlightedStop = route.stops.find((s) => s.id === highlightStopId);
     if (highlightedStop) {
-      geofenceCircleRef.current = new google.maps.Circle({
+      highlightCircleRef.current = new google.maps.Circle({
         center: { lat: highlightedStop.latitude, lng: highlightedStop.longitude },
-        radius: 1000,
+        radius: 650,
         strokeColor: routeColor,
-        strokeOpacity: 0.65,
+        strokeOpacity: 0.5,
         strokeWeight: 1.5,
         fillColor: lightColor,
-        fillOpacity: 0.16,
+        fillOpacity: 0.14,
         clickable: false,
         map,
       });
@@ -136,45 +128,9 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
     return () => {
       routeOutlineRef.current?.setMap(null);
       routePolylineRef.current?.setMap(null);
-      geofenceCircleRef.current?.setMap(null);
+      highlightCircleRef.current?.setMap(null);
     };
-  }, [map, route, highlightStopId, routeColor, lightColor]);
-
-  // Update GPS accuracy circle around live bus
-  useEffect(() => {
-    if (!map || !location || typeof google === 'undefined' || !google.maps) return;
-
-    const center = { lat: location.latitude, lng: location.longitude };
-    const radius = Math.max(8, location.accuracy || 10);
-
-    if (!accuracyCircleRef.current) {
-      accuracyCircleRef.current = new google.maps.Circle({
-        center,
-        radius,
-        strokeColor: routeColor,
-        strokeOpacity: 0.7,
-        strokeWeight: 1,
-        fillColor: lightColor,
-        fillOpacity: 0.22,
-        clickable: false,
-        map,
-      });
-    } else {
-      accuracyCircleRef.current.setCenter(center);
-      accuracyCircleRef.current.setRadius(radius);
-      accuracyCircleRef.current.setOptions({
-        strokeColor: routeColor,
-        fillColor: lightColor,
-      });
-    }
-  }, [map, location, routeColor, lightColor]);
-
-  useEffect(() => {
-    return () => {
-      accuracyCircleRef.current?.setMap(null);
-      accuracyCircleRef.current = null;
-    };
-  }, []);
+  }, [map, route, highlightStopId, routeColor, lightColor, location]);
 
   return null;
 };
@@ -184,7 +140,6 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
   location,
   route,
   highlightStopId,
-  isStale = false,
   className = 'h-56 w-full',
   showControls = true,
   isInteractive = true,
@@ -212,7 +167,7 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
     lng: location?.longitude || route?.stops[0]?.longitude || -122.4194,
   };
 
-  const recenterOnBus = () => {
+  const recenterOnRoute = () => {
     if (!mapRef.current || !location) return;
     mapRef.current.panTo({ lat: location.latitude, lng: location.longitude });
     mapRef.current.setZoom(15);
@@ -243,7 +198,7 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
         <MapPin className="w-6 h-6 text-[#26788E] mb-1.5" />
         <p className="text-xs font-extrabold text-[#304C64]">Google Maps Quota Limit Reached</p>
         <p className="text-[11px] font-medium text-slate-600 mt-0.5 max-w-xs">
-          Live GPS telemetry remains active. Switch to your own Maps key in Cloud Console to restore map tiles.
+          Switch to your own Google Cloud Maps key to restore interactive map tiles.
         </p>
       </div>
     );
@@ -290,12 +245,6 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
               }}
             >
               <div className="relative flex flex-col items-center">
-                {isHighlighted && (
-                  <div
-                    className="absolute -inset-1.5 rounded-full animate-ping opacity-30"
-                    style={{ backgroundColor: currentColors.marker }}
-                  />
-                )}
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shadow-md border-2 border-white ${
                     isHighlighted
@@ -306,7 +255,7 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
                   }`}
                   style={isHighlighted ? { backgroundColor: currentColors.marker } : undefined}
                 >
-                  {isLastStop ? '🏫' : isHighlighted ? '★' : stop.sequenceOrder}
+                  {isLastStop ? '🏫' : stop.sequenceOrder}
                 </div>
                 <span
                   className={`mt-0.5 whitespace-nowrap px-1.5 py-0 rounded-full text-[9px] font-bold shadow-xs ${
@@ -339,12 +288,12 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
           </InfoWindow>
         )}
 
-        {/* Live Bus AdvancedMarker */}
+        {/* Active Corridor Shuttle Marker */}
         {location && (
           <AdvancedMarker
             position={{ lat: location.latitude, lng: location.longitude }}
             zIndex={50}
-            title={`${bus?.busNumber || 'School Bus'} (${Math.round(location.speed)} km/h)`}
+            title={`${bus?.busNumber || 'Bus 14'} · ${route?.code || 'Route 14A'}`}
             onClick={() => {
               setSelectedStop(null);
               setBusInfoOpen((v) => !v);
@@ -352,73 +301,57 @@ const GoogleBusMapCanvas: React.FC<LiveBusMapProps> = ({
           >
             <div className="relative flex flex-col items-center">
               <div className="mb-1 bg-slate-900/90 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-xs">
-                {bus?.busNumber || 'Bus'} · {Math.round(location.speed)} km/h
+                {bus?.busNumber || 'Bus 14'} · {route?.code || '14A'}
               </div>
               <div
-                className="relative flex items-center justify-center"
-                style={{ transform: `rotate(${location.heading || 0}deg)` }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg border-2 border-white text-white"
+                style={{ backgroundColor: currentColors.marker }}
               >
-                {!isStale && <div className="custom-pulse-ring" />}
-                <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-lg border-2 border-white text-white ${
-                    isStale ? 'bg-amber-500' : ''
-                  }`}
-                  style={!isStale ? { backgroundColor: currentColors.marker } : undefined}
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M8 6v6" />
-                    <path d="M15 6v6" />
-                    <path d="M2 12h19.6" />
-                    <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5.3C20.1 6.6 19.2 6 18.2 6H5.8C4.8 6 3.9 6.6 3.6 7.5L2.2 12.8c-.1.4-.2.8-.2 1.2 0 .4.1.8.2 1.2.3 1.1.8 2.8.8 2.8h3" />
-                    <circle cx="7" cy="18" r="2" />
-                    <path d="M9 18h5" />
-                    <circle cx="16" cy="18" r="2" />
-                  </svg>
-                </div>
+                  <path d="M8 6v6" />
+                  <path d="M15 6v6" />
+                  <path d="M2 12h19.6" />
+                  <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5.3C20.1 6.6 19.2 6 18.2 6H5.8C4.8 6 3.9 6.6 3.6 7.5L2.2 12.8c-.1.4-.2.8-.2 1.2 0 .4.1.8.2 1.2.3 1.1.8 2.8.8 2.8h3" />
+                  <circle cx="7" cy="18" r="2" />
+                  <path d="M9 18h5" />
+                  <circle cx="16" cy="18" r="2" />
+                </svg>
               </div>
             </div>
           </AdvancedMarker>
         )}
 
-        {/* Live Bus InfoWindow */}
         {busInfoOpen && location && (
           <InfoWindow
             position={{ lat: location.latitude, lng: location.longitude }}
             onCloseClick={() => setBusInfoOpen(false)}
           >
             <div className="text-slate-900 px-1 py-0.5 min-w-[140px]">
-              <p className="text-xs font-extrabold">{bus?.busNumber || 'School Bus'}</p>
+              <p className="text-xs font-extrabold">{bus?.busNumber || 'Bus 14'}</p>
               <p className="text-[11px] text-slate-600">{bus?.model || route?.name}</p>
               <p className="text-[11px] font-bold text-[#26788E] mt-1">
-                {Math.round(location.speed)} km/h · ±{Math.round(location.accuracy)}m GPS
+                Morning Corridor Schedule
               </p>
             </div>
           </InfoWindow>
         )}
       </GoogleMap>
 
-      {isStale && (
-        <div className="absolute top-12 left-2.5 z-10 max-w-[calc(100%-6rem)] clear-glass-btn-amber px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-semibold">
-          <AlertCircle className="w-3 h-3 shrink-0" />
-          <span className="truncate">Last known location</span>
-        </div>
-      )}
-
       {showControls && (
         <div className="absolute top-2.5 right-2.5 z-10 flex flex-col gap-1.5">
           <button
             type="button"
-            onClick={recenterOnBus}
-            title="Recenter on Bus"
-            aria-label="Recenter on Bus"
+            onClick={recenterOnRoute}
+            title="Center on Shuttle"
+            aria-label="Center on Shuttle"
             className="w-7 h-7 rounded-full clear-glass-btn flex items-center justify-center text-[#304C64]"
           >
             <Navigation className="w-3.5 h-3.5" />
@@ -462,11 +395,10 @@ export const LiveBusMap: React.FC<LiveBusMapProps> = (props) => {
       >
         <MapPin className="w-6 h-6 text-[#26788E] mb-1.5" />
         <p className="text-xs font-extrabold text-[#304C64]">
-          {props.bus?.busNumber || 'School Bus'} · {props.route?.name || 'Live Telemetry Ready'}
+          {props.bus?.busNumber || 'Bus 14'} · {props.route?.name || 'Oakridge Corridor'}
         </p>
         <p className="text-[11px] font-medium text-slate-600 mt-0.5 max-w-xs">
-          Google Maps key pending runtime injection. Speed:{' '}
-          {Math.round(props.location?.speed || 0)} km/h · Stops: {props.route?.stops.length || 0}
+          {props.route?.stops.length || 0} scheduled stops along corridor
         </p>
       </div>
     );

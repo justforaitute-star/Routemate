@@ -86,13 +86,18 @@ export class LiveAudioEngine {
     this.micStream = stream;
 
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    const inputCtx = new AudioContextClass({ sampleRate: 16000 });
+    let inputCtx: AudioContext;
+    try {
+      inputCtx = new AudioContextClass({ sampleRate: 16000 });
+    } catch {
+      inputCtx = new AudioContextClass();
+    }
     if (inputCtx.state === 'suspended') {
       await inputCtx.resume();
     }
     this.inputCtx = inputCtx;
 
-    // Pre-warm 24kHz playback AudioContext on user gesture
+    // Pre-warm playback AudioContext on user gesture
     this.ensureOutputContext();
 
     const source = inputCtx.createMediaStreamSource(stream);
@@ -130,7 +135,11 @@ export class LiveAudioEngine {
   private ensureOutputContext(): AudioContext {
     if (!this.outputCtx) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      this.outputCtx = new AudioContextClass({ sampleRate: 24000 });
+      try {
+        this.outputCtx = new AudioContextClass({ sampleRate: 24000 });
+      } catch {
+        this.outputCtx = new AudioContextClass();
+      }
     }
     if (this.outputCtx.state === 'suspended') {
       this.outputCtx.resume().catch(() => {});

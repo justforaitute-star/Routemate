@@ -94,7 +94,7 @@ export const PaletteSelector: React.FC<PaletteSelectorProps> = ({ compact = fals
             <button
               key={p.id}
               onClick={() => setColorPalette(p.id)}
-              className={`p-2.5 rounded-xl text-left transition-all relative ${
+              className={`p-2.5 rounded-xl text-left transition-all relative last:col-span-2 ${
                 isSelected
                   ? 'clear-glass-btn-primary'
                   : 'clear-glass-btn'

@@ -1,8 +1,9 @@
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import express, { Request, Response } from 'express';
 import { initialDb } from './server/db';
 import { processLocationPing } from './server/proximityService';
-import { createServer as createViteServer } from 'vite';
 import {
   clearCoDriverSession,
   formatCoDriverError,
@@ -13,9 +14,13 @@ import { computeGoogleTrafficRoutes } from './server/googleMapsService';
 import { attachCoDriverLiveWebSocket } from './server/coDriverLiveService';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '15mb' }));
+
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() });
+});
 
 // In-memory server database state
 let db = JSON.parse(JSON.stringify(initialDb));
@@ -536,7 +541,7 @@ app.post('/api/reset-demo', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'Database reset to default demo state' });
 });
 
-// Mount Vite in dev mode and attach Gemini Live WebSocket bridge
+// Mount Vite in dev mode or serve built dist/ in production, and attach Gemini Live WebSocket bridge
 async function startServer() {
   const httpServer = http.createServer(app);
   attachCoDriverLiveWebSocket({
@@ -545,11 +550,22 @@ async function startServer() {
     broadcastEvent,
   });
 
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-  app.use(vite.middlewares);
+  const distDir = path.resolve(process.cwd(), 'dist');
+  const isProd = process.env.NODE_ENV === 'production' && fs.existsSync(distDir);
+
+  if (isProd) {
+    app.use(express.static(distDir));
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+  } else {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`RouteMate server running on http://0.0.0.0:${PORT}`);

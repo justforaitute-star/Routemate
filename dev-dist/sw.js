@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
+define(['./workbox-5d155c7a'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -78,7 +78,7 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "0.i0drbkj1e6"
+    "revision": "0.ksjiot52rtg"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -99,15 +99,6 @@ define(['./workbox-53feb3a3'], (function (workbox) { 'use strict';
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 10,
       maxAgeSeconds: 31536000
-    }), new workbox.CacheableResponsePlugin({
-      statuses: [0, 200]
-    })]
-  }), 'GET');
-  workbox.registerRoute(/^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i, new workbox.StaleWhileRevalidate({
-    "cacheName": "osm-map-tiles",
-    plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 120,
-      maxAgeSeconds: 604800
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]
     })]

@@ -85,20 +85,6 @@ export default defineConfig(() => {
               },
             },
             {
-              urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'osm-map-tiles',
-                expiration: {
-                  maxEntries: 120,
-                  maxAgeSeconds: 60 * 60 * 24 * 7,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
               urlPattern: /\/api\/bootstrap$/i,
               handler: 'NetworkFirst',
               options: {
