@@ -225,3 +225,35 @@ export interface CoDriverTurnResponse {
   audioMimeType?: string;
 }
 
+export interface RouteStopEta {
+  stopId: string;
+  stopName: string;
+  sequenceOrder: number;
+  scheduledTime: string;
+  estimatedArrivalTime: string;
+  etaMinutes: number;
+  legDurationSeconds: number;
+  legDistanceMeters: number;
+  cumulativeDistanceMeters: number;
+  isPassed: boolean;
+}
+
+export interface RouteEtaSummary {
+  routeId: string;
+  routeName: string;
+  routeCode: string;
+  source: 'google_routes_api' | 'corridor_estimate';
+  totalDurationSeconds: number;
+  staticDurationSeconds: number;
+  etaMinutes: number;
+  trafficDeltaMinutes: number;
+  trafficCondition: 'clear' | 'moderate' | 'heavy';
+  distanceMeters: number;
+  estimatedArrivalTime: string;
+  encodedPolyline?: string;
+  decodedWaypoints?: [number, number][];
+  stopEtas: RouteStopEta[];
+  computedAtIso: string;
+}
+
+

@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { LiveBusMap } from '../map/LiveBusMap';
 import { Avatar } from '../common/Avatar';
 import { PaletteSelector } from '../common/PaletteSelector';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
-import { DemoTabId } from '../common/AppDock';
+import { RouteEtaCard } from './RouteEtaCard';
 import { requestPushPermission } from '../../utils/pushNotifications';
 import {
   MapPin,
@@ -23,14 +23,17 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
+export type DemoShowcaseTabId = 'overview' | 'roster' | 'alerts' | 'fleet';
+
 interface DemoShowcaseViewProps {
-  activeTab: DemoTabId;
-  onTabChange: (tab: DemoTabId) => void;
+  activeTab: DemoShowcaseTabId;
+  onTabChange: (tab: DemoShowcaseTabId) => void;
 }
 
 export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, onTabChange }) => {
   const {
     school,
+    users,
     buses,
     routes,
     students,
@@ -49,6 +52,12 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
     resetDemoData,
   } = useApp();
 
+  const [selectedRouteId, setSelectedRouteId] = useState<string>(
+    () => activeTrip?.routeId || routes[0]?.id || 'route-1'
+  );
+  const [selectedEtaStopId, setSelectedEtaStopId] = useState<string | undefined>(undefined);
+  const [resolvedPolylines, setResolvedPolylines] = useState<Record<string, [number, number][]>>({});
+
   const [noticeType, setNoticeType] = useState<'delay' | 'traffic' | 'route_change'>('delay');
   const [noticeMessage, setNoticeMessage] = useState('');
   const [noticeDelay, setNoticeDelay] = useState<number>(10);
@@ -58,10 +67,48 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
   );
 
-  const activeRoute = useMemo(
-    () => routes.find((r) => r.id === activeTrip?.routeId) || routes[0],
-    [routes, activeTrip]
+  useEffect(() => {
+    if (routes.length > 0 && !routes.some((r) => r.id === selectedRouteId)) {
+      setSelectedRouteId(activeTrip?.routeId || routes[0].id);
+    }
+  }, [routes, selectedRouteId, activeTrip?.routeId]);
+
+  const handleResolvedRoutePolyline = useCallback(
+    (routeId: string, waypoints: [number, number][]) => {
+      setResolvedPolylines((prev) => ({ ...prev, [routeId]: waypoints }));
+    },
+    []
   );
+
+  const activeRoute = useMemo(() => {
+    const base =
+      routes.find((r) => r.id === selectedRouteId) ||
+      routes.find((r) => r.id === activeTrip?.routeId) ||
+      routes[0];
+    if (!base) return undefined;
+    const apiWaypoints = resolvedPolylines[base.id];
+    return apiWaypoints && apiWaypoints.length > 1
+      ? { ...base, waypoints: apiWaypoints }
+      : base;
+  }, [routes, selectedRouteId, activeTrip?.routeId, resolvedPolylines]);
+
+  const selectedRouteBus = useMemo(() => {
+    if (!activeRoute) return activeBus;
+    return buses.find((b) => b.id === activeRoute.assignedBusId) || activeBus;
+  }, [activeRoute, buses, activeBus]);
+
+  const selectedRouteDriverName = useMemo(() => {
+    if (selectedRouteBus?.assignedDriverId) {
+      const assigned = users.find((u) => u.id === selectedRouteBus.assignedDriverId);
+      if (assigned?.name) return assigned.name;
+    }
+    return activeTrip?.driverName || 'Marcus Vance';
+  }, [selectedRouteBus, users, activeTrip?.driverName]);
+
+  const selectedRouteLocation = useMemo(() => {
+    if (!selectedRouteBus) return activeLocation;
+    return locations[selectedRouteBus.id] || activeLocation;
+  }, [selectedRouteBus, locations, activeLocation]);
 
   const familyStudents = useMemo(() => {
     const mine = students.filter((s) => s.guardianId === 'parent-1');
@@ -83,7 +130,12 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
 
   const routeStudents = useMemo(
     () =>
-      students.filter((s) => !activeRoute || s.routeId === activeRoute.id),
+      students.filter(
+        (s) =>
+          !activeRoute ||
+          s.routeId === activeRoute.id ||
+          activeRoute.stops.some((st) => st.assignedStudentIds.includes(s.id))
+      ),
     [students, activeRoute]
   );
 
@@ -135,25 +187,25 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
   };
 
   // =========================================================
-  // TAB 1: OVERVIEW (Unified Map + Schedule + Family Pass + Quick Check-In)
+  // TAB 1: OVERVIEW (Unified Map + Dynamic ETA + Schedule + Family Pass)
   // =========================================================
   if (activeTab === 'overview') {
-    const scheduleStatus =
-      activeTrip && activeTrip.delayMinutes > 0
-        ? `+${activeTrip.delayMinutes} min schedule adjustment`
-        : 'Operating on schedule';
-
     const boardedCount = routeStudents.filter((s) => getBoardingStatus(s.id) === 'boarded').length;
+    const mapHighlightStopId =
+      selectedEtaStopId ||
+      (activeRoute?.stops.some((st) => st.id === selectedStudent?.morningStopId)
+        ? selectedStudent?.morningStopId
+        : activeRoute?.stops[0]?.id);
 
     return (
       <div className="flex-1 flex flex-col md:flex-row gap-3 p-3 min-h-0 md:overflow-hidden">
         {/* Interactive Google Map Corridor Canvas */}
         <div className="relative h-[250px] sm:h-[300px] md:h-full md:flex-1 shrink-0 rounded-2xl overflow-hidden shadow-sm">
           <LiveBusMap
-            bus={activeBus}
-            location={activeLocation}
+            bus={selectedRouteBus}
+            location={selectedRouteLocation}
             route={activeRoute}
-            highlightStopId={selectedStudent?.morningStopId}
+            highlightStopId={mapHighlightStopId}
             assignedStudent={selectedStudent}
             className="w-full h-full"
             showControls
@@ -164,10 +216,10 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
           <div className="pointer-events-none absolute top-2.5 left-2.5 right-12 z-10 flex items-start">
             <div className="liquid-glass-elevated rounded-2xl px-3 py-2 max-w-xs shadow-md">
               <p className="text-xs font-extrabold text-[#304C64] truncate">
-                {activeBus?.busNumber || 'Bus 14'} · {activeRoute?.name || 'Route 14A'}
+                {selectedRouteBus?.busNumber || 'Bus 14'} · {activeRoute?.name || 'Route 14A'}
               </p>
               <p className="text-[11px] font-medium text-slate-600 truncate">
-                {activeTrip?.driverName || 'Marcus Vance'} · {activeRoute?.stops.length || 4} Scheduled Stops
+                {selectedRouteDriverName} · {activeRoute?.stops.length || 4} Scheduled Stops
               </p>
             </div>
           </div>
@@ -175,43 +227,18 @@ export const DemoShowcaseView: React.FC<DemoShowcaseViewProps> = ({ activeTab, o
 
         {/* Right Showcase Column */}
         <div className="w-full md:w-[390px] lg:w-[420px] shrink-0 md:overflow-y-auto space-y-3 pb-2 md:pr-0.5">
-          {/* 1. Active Route & Schedule */}
-          <section className="clear-glass-card rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h2 className="text-sm font-extrabold text-[#304C64] truncate">
-                  {activeRoute?.name || 'Oakridge Route 14A'}
-                </h2>
-                <p className="text-[11px] text-slate-600 font-medium mt-0.5">
-                  {activeBus?.busNumber || 'Bus 14'} · {activeBus?.model || 'Blue Bird Vision EV'} · {activeTrip?.driverName || 'Marcus Vance'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onTabChange('roster')}
-                className="clear-glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-[#26788E] whitespace-nowrap shrink-0 flex items-center gap-1"
-              >
-                <span>Roster</span>
-                <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/50 text-[11px] font-semibold">
-              <span className="flex items-center gap-1.5 text-[#304C64]">
-                <Clock className="w-3.5 h-3.5 text-[#26788E]" />
-                07:35 AM – 08:15 AM
-              </span>
-              <span
-                className={
-                  activeTrip && activeTrip.delayMinutes > 0
-                    ? 'text-[#E2480C]'
-                    : 'text-[#059669]'
-                }
-              >
-                {scheduleStatus}
-              </span>
-            </div>
-          </section>
+          {/* 1. Dynamic Google Maps Routes API ETA Card */}
+          <RouteEtaCard
+            routes={routes}
+            selectedRoute={activeRoute}
+            selectedBus={selectedRouteBus}
+            selectedLocation={selectedRouteLocation}
+            activeTrip={activeTrip}
+            selectedStopId={selectedEtaStopId}
+            onSelectRoute={setSelectedRouteId}
+            onSelectStop={setSelectedEtaStopId}
+            onResolvedRoutePolyline={handleResolvedRoutePolyline}
+          />
 
           {/* 2. Family & Digital Student Pass */}
           {selectedStudent && (

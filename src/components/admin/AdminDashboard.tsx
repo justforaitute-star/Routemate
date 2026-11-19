@@ -9,6 +9,8 @@ import {
   Search,
   Gauge,
   Radio,
+  Shield,
+  Bell,
 } from 'lucide-react';
 import { NotificationThresholds } from '../../types';
 
@@ -26,6 +28,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
     trips,
     locations,
     boardingRecords,
+    notifications,
+    markNotificationRead,
     activeBus,
     activeLocation,
     isBusLocationStale,
@@ -54,6 +58,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
 
   const activeBusesCount = buses.filter((b) => b.status === 'active').length;
   const totalBoardedCount = boardingRecords.filter((r) => r.status === 'boarded').length;
+
+  const renderRoleBanner = () => (
+    <div className="clear-glass-card rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl clear-glass-btn-primary flex items-center justify-center shrink-0">
+          <Shield className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-xs font-extrabold text-[#304C64] tracking-tight truncate">
+            Dispatch Console
+          </h2>
+          <p className="text-[10px] font-medium text-slate-500 truncate">
+            Elena Rostova · {buses.length} District Vehicles
+          </p>
+        </div>
+      </div>
+      <span className="text-[11px] font-extrabold text-emerald-700 whitespace-nowrap shrink-0">
+        {activeBusesCount} Active
+      </span>
+    </div>
+  );
+
+  // --- SUBVIEW: ALERTS ---
+  const renderDispatchAlerts = () => (
+    <div className="space-y-2.5 animate-in fade-in duration-200">
+      <div>
+        <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">District Alert Feed</h2>
+        <p className="text-[11px] text-slate-500">Live route incidents &amp; proximity dispatches</p>
+      </div>
+      {notifications.length === 0 ? (
+        <div className="clear-glass-card rounded-2xl p-6 text-center">
+          <Bell className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
+          <p className="text-xs font-bold text-[#304C64]">No active alerts</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => markNotificationRead(n.id)}
+              className={`w-full text-left p-3 rounded-2xl transition-all text-xs ${
+                !n.isRead ? 'clear-glass-card ring-1 ring-[var(--primary)]/25' : 'clear-glass-btn opacity-80'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-[#304C64] truncate">{n.title}</span>
+                <span className="text-[10px] text-slate-500 shrink-0 whitespace-nowrap">
+                  {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-1 leading-snug">{n.message}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   // --- SUBVIEW: OVERVIEW ---
   const renderOverview = () => (
@@ -259,7 +321,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
   // =========================================================================
   if (isWideScreen) {
     return (
-      <div className="flex flex-1 h-full w-full overflow-hidden">
+      <div data-testid="role-section-admin" className="flex flex-1 h-full w-full overflow-hidden">
         {/* Left: District Fleet Map */}
         <section className="flex-1 h-full flex flex-col relative overflow-hidden p-3 pr-1.5">
           <div className="relative flex-1 w-full h-full rounded-2xl overflow-hidden">
@@ -288,28 +350,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
 
         {/* Right: Operations Console */}
         <section className="w-[380px] lg:w-[420px] shrink-0 h-full overflow-y-auto p-3 pl-1.5 space-y-3">
-          <div className="clear-glass-card p-1 rounded-full grid grid-cols-3 gap-1">
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'roster', label: 'Roster' },
-              { id: 'settings', label: 'Settings' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`py-1.5 px-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                  activeTab === tab.id || (tab.id === 'overview' && activeTab === 'fleet')
-                    ? 'clear-glass-btn-primary'
-                    : 'text-[#304C64]/75 hover:bg-white/30'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {renderRoleBanner()}
 
           {activeTab === 'roster'
             ? renderRoster()
+            : activeTab === 'alerts'
+            ? renderDispatchAlerts()
             : activeTab === 'settings'
             ? renderSettings()
             : renderOverview()}
@@ -323,7 +369,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
   // =========================================================================
   if (activeTab === 'fleet') {
     return (
-      <div className="relative h-full min-h-[400px] w-full overflow-hidden p-2">
+      <div data-testid="role-section-admin" className="relative h-full min-h-[400px] w-full overflow-hidden p-2">
         <div className="relative w-full h-full rounded-2xl overflow-hidden">
           <LiveBusMap
             bus={activeBus}
@@ -345,12 +391,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
   }
 
   if (activeTab === 'roster') {
-    return <div className="p-3 pb-4">{renderRoster()}</div>;
+    return (
+      <div data-testid="role-section-admin" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderRoster()}
+      </div>
+    );
+  }
+
+  if (activeTab === 'alerts') {
+    return (
+      <div data-testid="role-section-admin" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderDispatchAlerts()}
+      </div>
+    );
   }
 
   if (activeTab === 'settings') {
-    return <div className="p-3 pb-4">{renderSettings()}</div>;
+    return (
+      <div data-testid="role-section-admin" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderSettings()}
+      </div>
+    );
   }
 
-  return <div className="p-3 pb-4">{renderOverview()}</div>;
+  return (
+    <div data-testid="role-section-admin" className="p-3 space-y-2.5 pb-4">
+      {renderRoleBanner()}
+      {renderOverview()}
+    </div>
+  );
 };

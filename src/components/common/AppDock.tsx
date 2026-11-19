@@ -1,14 +1,33 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { LayoutGrid, CheckSquare, Bell, Layers, Mic, MicOff, Loader2 } from 'lucide-react';
+import {
+  LayoutGrid,
+  CheckSquare,
+  Bell,
+  Layers,
+  Mic,
+  MicOff,
+  Loader2,
+  Route as RouteIcon,
+  QrCode,
+  UserCheck,
+  Map as MapIcon,
+  Sliders,
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { LiveAudioEngine } from '../../utils/liveAudio';
 import { playCoDriverSpeech, stopCoDriverSpeech } from '../../utils/audioAlerts';
+import {
+  getDockTabsForRole,
+  normalizeTabForRole,
+  RoleDockTabSpec,
+  SectionTabId,
+} from '../../utils/roleSectionHelpers';
 
-export type DemoTabId = 'overview' | 'roster' | 'alerts' | 'fleet';
+export type DemoTabId = SectionTabId;
 
 interface AppDockProps {
-  activeTab: DemoTabId;
-  onTabChange: (tab: DemoTabId) => void;
+  activeTab: SectionTabId;
+  onTabChange: (tab: SectionTabId) => void;
 }
 
 type MicState = 'idle' | 'connecting' | 'listening' | 'recording' | 'thinking' | 'speaking';
@@ -35,8 +54,9 @@ function getRecorderMimeType(): string {
 }
 
 export const AppDock: React.FC<AppDockProps> = ({ activeTab, onTabChange }) => {
-  const { notifications, currentUser } = useApp();
+  const { notifications, currentUser, currentRole } = useApp();
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const normalizedActiveTab = normalizeTabForRole(currentRole, activeTab);
 
   const [isMicOpen, setIsMicOpen] = useState<boolean>(false);
   const [micState, setMicState] = useState<MicState>('idle');
@@ -417,15 +437,19 @@ export const AppDock: React.FC<AppDockProps> = ({ activeTab, onTabChange }) => {
     micState === 'thinking' ||
     micState === 'connecting';
 
-  const leftTabs: { id: DemoTabId; label: string; icon: any }[] = [
-    { id: 'overview', label: 'Overview', icon: LayoutGrid },
-    { id: 'roster', label: 'Roster', icon: CheckSquare },
-  ];
+  const DOCK_ICON_MAP: Record<RoleDockTabSpec['iconKey'], any> = {
+    overview: LayoutGrid,
+    routes: RouteIcon,
+    stops: CheckSquare,
+    pass: QrCode,
+    roster: Layers,
+    alerts: Bell,
+    profile: UserCheck,
+    settings: Sliders,
+    map: MapIcon,
+  };
 
-  const rightTabs: { id: DemoTabId; label: string; icon: any; badge?: number }[] = [
-    { id: 'alerts', label: 'Alerts', icon: Bell, badge: unreadCount },
-    { id: 'fleet', label: 'Fleet', icon: Layers },
-  ];
+  const { left: leftTabs, right: rightTabs } = getDockTabsForRole(currentRole);
 
   return (
     <div className="shrink-0 z-[1050] px-3 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-1 relative">
@@ -491,12 +515,13 @@ export const AppDock: React.FC<AppDockProps> = ({ activeTab, onTabChange }) => {
       >
         <div className="grid grid-cols-[1fr_1fr_auto_1fr_1fr] items-center gap-1">
           {leftTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const Icon = DOCK_ICON_MAP[tab.iconKey] || LayoutGrid;
+            const isActive = normalizedActiveTab === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
+                data-testid={`dock-tab-${tab.id}`}
                 onClick={() => onTabChange(tab.id)}
                 className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-full transition-all whitespace-nowrap ${
                   isActive
@@ -537,12 +562,14 @@ export const AppDock: React.FC<AppDockProps> = ({ activeTab, onTabChange }) => {
           </div>
 
           {rightTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const Icon = DOCK_ICON_MAP[tab.iconKey] || Bell;
+            const isActive = normalizedActiveTab === tab.id;
+            const badgeCount = tab.showUnreadBadge ? unreadCount : 0;
             return (
               <button
                 key={tab.id}
                 type="button"
+                data-testid={`dock-tab-${tab.id}`}
                 onClick={() => onTabChange(tab.id)}
                 className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-full transition-all whitespace-nowrap ${
                   isActive
@@ -552,12 +579,12 @@ export const AppDock: React.FC<AppDockProps> = ({ activeTab, onTabChange }) => {
               >
                 <div className="relative">
                   <Icon className={`w-4 h-4 ${isActive ? 'stroke-[2.4]' : 'stroke-[1.9]'}`} />
-                  {Boolean(tab.badge && tab.badge > 0) && (
+                  {badgeCount > 0 && (
                     <span
                       className="absolute -top-1 -right-2 min-w-3.5 h-3.5 px-0.5 rounded-full text-white text-[8px] font-extrabold flex items-center justify-center shadow-xs"
                       style={{ backgroundColor: 'var(--accent-amber, #E2480C)' }}
                     >
-                      {tab.badge! > 9 ? '9+' : tab.badge}
+                      {badgeCount > 9 ? '9+' : badgeCount}
                     </span>
                   )}
                 </div>

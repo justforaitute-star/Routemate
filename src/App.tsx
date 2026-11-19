@@ -6,19 +6,28 @@
 import React, { useState, useEffect } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { AlertTriangle, X } from 'lucide-react';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import { AppHeader } from './components/common/AppHeader';
-import { AppDock, DemoTabId } from './components/common/AppDock';
-import { DemoShowcaseView } from './components/demo/DemoShowcaseView';
+import { AppDock } from './components/common/AppDock';
+import { GuardianView } from './components/guardian/GuardianView';
+import { DriverView } from './components/driver/DriverView';
+import { StudentView } from './components/student/StudentView';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 import { useMediaQuery } from './utils/useMediaQuery';
+import { normalizeTabForRole, SectionTabId } from './utils/roleSectionHelpers';
 
 const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 const MainApp: React.FC = () => {
+  const { currentRole } = useApp();
   const isWideScreen = useMediaQuery('(min-width: 768px)');
-  const [activeTab, setActiveTab] = useState<DemoTabId>('overview');
+  const [activeTab, setActiveTab] = useState<SectionTabId>('overview');
   const [gmpQuotaExceeded, setGmpQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    setActiveTab('overview');
+  }, [currentRole]);
 
   useEffect(() => {
     const handleQuotaExceeded = () => setGmpQuotaExceeded(true);
@@ -26,8 +35,16 @@ const MainApp: React.FC = () => {
     return () => window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
   }, []);
 
+  const normalizedTab = normalizeTabForRole(currentRole, activeTab);
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(normalizeTabForRole(currentRole, tabId));
+  };
+
   return (
-    <div className="h-dvh w-full flex flex-col relative overflow-hidden bg-gradient-to-br from-[#dcebf2] via-[#ebf3f7] to-[#dfecf2] pt-[env(safe-area-inset-top)]">
+    <div
+      data-role-section={currentRole}
+      className="h-dvh w-full flex flex-col relative overflow-hidden bg-gradient-to-br from-[#dcebf2] via-[#ebf3f7] to-[#dfecf2] pt-[env(safe-area-inset-top)]"
+    >
       {/* Shared Demo Key Quota Exhaustion Banner */}
       {gmpQuotaExceeded && (
         <div
@@ -67,20 +84,28 @@ const MainApp: React.FC = () => {
       <div className="pointer-events-none fixed -bottom-20 left-1/4 w-96 h-96 rounded-full bg-[#E2480C]/20 blur-3xl" />
       <div className="pointer-events-none fixed bottom-1/3 right-1/3 w-72 h-72 rounded-full bg-white/60 blur-3xl" />
 
-      {/* Top Navigation Bar */}
-      <AppHeader onNotificationClick={() => setActiveTab('alerts')} />
+      {/* Top Navigation Bar with Section Switcher */}
+      <AppHeader onNotificationClick={() => handleTabChange('alerts')} />
 
-      {/* Main Unified Showcase Area */}
+      {/* Role-Specific Dedicated Section View */}
       <main
         className={`flex-1 relative z-10 min-h-0 ${
           isWideScreen ? 'overflow-hidden flex flex-col' : 'overflow-y-auto overscroll-none flex flex-col'
         }`}
       >
-        <DemoShowcaseView activeTab={activeTab} onTabChange={setActiveTab} />
+        {currentRole === 'driver' ? (
+          <DriverView activeTab={normalizedTab} onTabChange={handleTabChange} />
+        ) : currentRole === 'student' ? (
+          <StudentView activeTab={normalizedTab} onTabChange={handleTabChange} />
+        ) : currentRole === 'admin' ? (
+          <AdminDashboard activeTab={normalizedTab} onTabChange={handleTabChange} />
+        ) : (
+          <GuardianView activeTab={normalizedTab} onTabChange={handleTabChange} />
+        )}
       </main>
 
-      {/* Unified Clear Liquid Glass Dock with Co-Driver Mic (Visible across Mobile, Tablet, Desktop) */}
-      <AppDock activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* Unified Clear Liquid Glass Dock with Co-Driver Mic */}
+      <AppDock activeTab={normalizedTab} onTabChange={handleTabChange} />
 
       {/* Offline Connectivity Banner */}
       <OfflineIndicator />

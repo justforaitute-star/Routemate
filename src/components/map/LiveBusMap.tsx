@@ -55,7 +55,7 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
   const routeOutlineRef = useRef<google.maps.Polyline | null>(null);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
   const highlightCircleRef = useRef<google.maps.Circle | null>(null);
-  const hasFittedRef = useRef<boolean>(false);
+  const lastFittedRouteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     onMapReady(map);
@@ -100,14 +100,14 @@ const MapOverlays: React.FC<MapOverlaysProps> = ({
         map,
       });
 
-      if (!hasFittedRef.current) {
+      if (lastFittedRouteIdRef.current !== route.id) {
         const bounds = new google.maps.LatLngBounds();
         path.forEach((pt) => bounds.extend(pt));
         if (location) {
           bounds.extend({ lat: location.latitude, lng: location.longitude });
         }
-        map.fitBounds(bounds, 36);
-        hasFittedRef.current = true;
+        map.fitBounds(bounds, { top: 72, right: 36, bottom: 24, left: 24 });
+        lastFittedRouteIdRef.current = route.id;
       }
     }
 

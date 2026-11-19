@@ -103,6 +103,27 @@ export const DriverView: React.FC<DriverViewProps> = ({ activeTab, onTabChange }
     setShowIncidentModal(false);
   };
 
+  const renderRoleBanner = () => (
+    <div className="clear-glass-card rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl clear-glass-btn-primary flex items-center justify-center shrink-0">
+          <Bus className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-xs font-extrabold text-[#304C64] tracking-tight truncate">
+            Driver Cockpit
+          </h2>
+          <p className="text-[10px] font-medium text-slate-500 truncate">
+            {currentUser.name} · {activeBus?.busNumber || 'Bus 14'}
+          </p>
+        </div>
+      </div>
+      <span className="text-[11px] font-extrabold text-emerald-700 whitespace-nowrap shrink-0">
+        {isTripActive ? 'Live GPS' : isTripPaused ? 'Paused' : 'Standby'}
+      </span>
+    </div>
+  );
+
   // --- SUBVIEW: STOPS ROSTER ---
   const renderStopsRoster = () => (
     <div className="space-y-2.5 animate-in fade-in duration-200">
@@ -514,7 +535,7 @@ export const DriverView: React.FC<DriverViewProps> = ({ activeTab, onTabChange }
   // =========================================================================
   if (isWideScreen) {
     return (
-      <div className="flex flex-1 h-full w-full overflow-hidden">
+      <div data-testid="role-section-driver" className="flex flex-1 h-full w-full overflow-hidden">
         {/* Left: Cockpit Map */}
         <section className="flex-1 h-full flex flex-col relative overflow-hidden p-3 pr-1.5">
           <div className="relative flex-1 w-full h-full rounded-2xl overflow-hidden">
@@ -562,30 +583,13 @@ export const DriverView: React.FC<DriverViewProps> = ({ activeTab, onTabChange }
           </div>
         </section>
 
-        {/* Right: Controls & Roster */}
+        {/* Right: Driver Cockpit Controls & Roster */}
         <section className="w-[380px] lg:w-[420px] shrink-0 h-full overflow-y-auto p-3 pl-1.5 space-y-3">
-          <div className="clear-glass-card p-1 rounded-full grid grid-cols-4 gap-1">
-            {[
-              { id: 'journey', label: 'Controls' },
-              { id: 'stops', label: 'Stops' },
-              { id: 'history', label: 'History' },
-              { id: 'profile', label: 'Profile' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`py-1.5 px-2 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                  activeTab === tab.id ? 'clear-glass-btn-primary' : 'text-[#304C64]/75 hover:bg-white/30'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {renderRoleBanner()}
 
           {activeTab === 'stops'
             ? renderStopsRoster()
-            : activeTab === 'history'
+            : activeTab === 'alerts' || activeTab === 'history'
             ? renderHistory()
             : activeTab === 'profile'
             ? renderProfile()
@@ -601,19 +605,36 @@ export const DriverView: React.FC<DriverViewProps> = ({ activeTab, onTabChange }
   // MOBILE VIEW (< 768px)
   // =========================================================================
   if (activeTab === 'stops') {
-    return <div className="p-3 pb-4">{renderStopsRoster()}</div>;
+    return (
+      <div data-testid="role-section-driver" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderStopsRoster()}
+      </div>
+    );
   }
 
-  if (activeTab === 'history') {
-    return <div className="p-3 pb-4">{renderHistory()}</div>;
+  if (activeTab === 'alerts' || activeTab === 'history') {
+    return (
+      <div data-testid="role-section-driver" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderHistory()}
+      </div>
+    );
   }
 
   if (activeTab === 'profile') {
-    return <div className="p-3 pb-4">{renderProfile()}</div>;
+    return (
+      <div data-testid="role-section-driver" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderProfile()}
+      </div>
+    );
   }
 
   return (
-    <div className="p-3 space-y-2.5 pb-4 animate-in fade-in duration-200">
+    <div data-testid="role-section-driver" className="p-3 space-y-2.5 pb-4 animate-in fade-in duration-200">
+      {renderRoleBanner()}
+
       <LiveBusMap
         bus={activeBus}
         location={activeLocation}

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { LiveBusMap } from '../map/LiveBusMap';
+import { RouteEtaCard } from '../demo/RouteEtaCard';
 import { haversineDistance } from '../../utils/proximity';
 import { calculateETAMinutes, formatETADisplay } from '../../utils/eta';
 import {
@@ -14,6 +15,7 @@ import {
   Gauge,
   Radio,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { requestPushPermission } from '../../utils/pushNotifications';
 import { PaletteSelector } from '../common/PaletteSelector';
@@ -30,7 +32,10 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
     students,
     routes,
     buses,
+    trips,
+    locations,
     activeTrip,
+    activeBus,
     activeLocation,
     boardingRecords,
     notifications,
@@ -43,9 +48,54 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
 
   const isWideScreen = useMediaQuery('(min-width: 768px)');
   const [pushStatus, setPushStatus] = useState<string>('idle');
+  const [selectedRouteId, setSelectedRouteId] = useState<string>(
+    () => activeTrip?.routeId || routes[0]?.id || 'route-1'
+  );
+  const [selectedEtaStopId, setSelectedEtaStopId] = useState<string | undefined>(undefined);
+  const [resolvedPolylines, setResolvedPolylines] = useState<Record<string, [number, number][]>>({});
 
   const myChildren = students.filter((s) => s.guardianId === 'parent-1');
   const activeChild = myChildren.find((c) => c.id === selectedChildId) || myChildren[0] || students[0];
+
+  useEffect(() => {
+    if (routes.length > 0 && !routes.some((r) => r.id === selectedRouteId)) {
+      setSelectedRouteId(activeChild?.routeId || activeTrip?.routeId || routes[0].id);
+    }
+  }, [routes, selectedRouteId, activeChild?.routeId, activeTrip?.routeId]);
+
+  const handleResolvedRoutePolyline = useCallback(
+    (routeId: string, waypoints: [number, number][]) => {
+      setResolvedPolylines((prev) => ({ ...prev, [routeId]: waypoints }));
+    },
+    []
+  );
+
+  const previewRoute = useMemo(() => {
+    const base =
+      routes.find((r) => r.id === selectedRouteId) ||
+      routes.find((r) => r.id === activeChild?.routeId) ||
+      routes[0];
+    if (!base) return undefined;
+    const apiWaypoints = resolvedPolylines[base.id];
+    return apiWaypoints && apiWaypoints.length > 1
+      ? { ...base, waypoints: apiWaypoints }
+      : base;
+  }, [routes, selectedRouteId, activeChild?.routeId, resolvedPolylines]);
+
+  const previewBus = useMemo(() => {
+    if (!previewRoute) return activeBus;
+    return buses.find((b) => b.id === previewRoute.assignedBusId) || activeBus;
+  }, [previewRoute, buses, activeBus]);
+
+  const previewLocation = useMemo(() => {
+    if (!previewBus) return activeLocation;
+    return locations[previewBus.id] || activeLocation;
+  }, [previewBus, locations, activeLocation]);
+
+  const previewTrip = useMemo(() => {
+    if (!previewRoute) return activeTrip;
+    return trips.find((t) => t.routeId === previewRoute.id) || activeTrip;
+  }, [previewRoute, trips, activeTrip]);
 
   const assignedBus = buses.find((b) => b.id === activeChild?.busId);
   const assignedRoute = routes.find((r) => r.id === activeChild?.routeId);
@@ -84,15 +134,37 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
     setPushStatus(res);
   };
 
-  // --- SUBVIEW: NOTIFICATIONS ---
+  const renderRoleBanner = () => (
+    <div className="clear-glass-card rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl clear-glass-btn-primary flex items-center justify-center shrink-0">
+          <Users className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-xs font-extrabold text-[#304C64] tracking-tight truncate">
+            Parent Portal
+          </h2>
+          <p className="text-[10px] font-medium text-slate-500 truncate">
+            Family Tracking · {activeChild?.fullName}
+          </p>
+        </div>
+      </div>
+      <span className="text-[11px] font-extrabold text-[var(--primary)] whitespace-nowrap shrink-0">
+        {assignedBus?.busNumber || 'Bus 14'}
+      </span>
+    </div>
+  );
+
+  // --- SUBVIEW: ALERTS ---
   const renderNotifications = () => (
     <div className="space-y-2.5 animate-in fade-in duration-200">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">Alerts & Updates</h2>
-          <p className="text-[11px] text-slate-500">Live arrival & safety notifications</p>
+          <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">Parent Alerts &amp; Updates</h2>
+          <p className="text-[11px] text-slate-500">Live arrival &amp; safety notifications</p>
         </div>
         <button
+          type="button"
           onClick={handleEnablePush}
           className="clear-glass-btn px-3 py-1.5 rounded-full text-[11px] font-bold text-[var(--primary)] whitespace-nowrap shrink-0"
         >
@@ -111,6 +183,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
           {notifications.map((n) => (
             <button
               key={n.id}
+              type="button"
               onClick={() => markNotificationRead(n.id)}
               className={`w-full text-left p-3 rounded-2xl transition-all text-xs ${
                 !n.isRead ? 'clear-glass-card ring-1 ring-[var(--primary)]/25' : 'clear-glass-btn opacity-80'
@@ -142,7 +215,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
     <div className="space-y-2.5 animate-in fade-in duration-200">
       <div>
         <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">Parent Account</h2>
-        <p className="text-[11px] text-slate-500">Preferences & linked students</p>
+        <p className="text-[11px] text-slate-500">Preferences &amp; linked students</p>
       </div>
 
       {/* Parent ID Card */}
@@ -151,7 +224,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-extrabold text-[#304C64] text-xs">Sarah Jenkins</h3>
-            <span className="text-[10px] font-bold text-[var(--primary)]">Verified</span>
+            <span className="text-[10px] font-bold text-[var(--primary)]">Verified Guardian</span>
           </div>
           <p className="text-[11px] text-slate-500 truncate">sarah.j@example.com · +1 (555) 987-6543</p>
           <p className="text-[10px] text-slate-500 truncate">{school?.name || 'Oakridge Academy'}</p>
@@ -163,10 +236,15 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
         <h4 className="text-[11px] font-bold text-slate-500">Linked Students</h4>
         {myChildren.map((c) => {
           const isSelected = c.id === activeChild?.id;
+          const childBus = buses.find((b) => b.id === c.busId);
           return (
             <button
               key={c.id}
-              onClick={() => setSelectedChildId(c.id)}
+              type="button"
+              onClick={() => {
+                setSelectedChildId(c.id);
+                setSelectedRouteId(c.routeId);
+              }}
               className={`w-full p-2.5 rounded-xl flex items-center justify-between gap-2 transition-all text-left ${
                 isSelected ? 'clear-glass-btn-primary' : 'clear-glass-btn'
               }`}
@@ -178,7 +256,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
                     {c.fullName}
                   </p>
                   <p className={`text-[10px] truncate ${isSelected ? 'text-white/85' : 'text-slate-500'}`}>
-                    {c.grade} · {assignedBus?.busNumber}
+                    {c.grade} · {childBus?.busNumber || 'Bus 14'}
                   </p>
                 </div>
               </div>
@@ -227,7 +305,24 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
     </div>
   );
 
-  // --- SUBVIEW: HOME CARDS ---
+  // --- SUBVIEW: ROUTES ETA ---
+  const renderRoutesEta = () => (
+    <div className="space-y-2.5 animate-in fade-in duration-200">
+      <RouteEtaCard
+        routes={routes}
+        selectedRoute={previewRoute}
+        selectedBus={previewBus}
+        selectedLocation={previewLocation}
+        activeTrip={previewTrip}
+        selectedStopId={selectedEtaStopId}
+        onSelectRoute={setSelectedRouteId}
+        onSelectStop={setSelectedEtaStopId}
+        onResolvedRoutePolyline={handleResolvedRoutePolyline}
+      />
+    </div>
+  );
+
+  // --- SUBVIEW: HOME TRACKING CARDS ---
   const renderHomeCards = () => (
     <div className="space-y-2.5 animate-in fade-in duration-200">
       {/* Multi-Child Clear Glass Selector */}
@@ -238,8 +333,14 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
             return (
               <button
                 key={child.id}
-                onClick={() => setSelectedChildId(child.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all shrink-0 whitespace-nowrap ${
+                type="button"
+                data-testid={`parent-child-${child.id}`}
+                onClick={() => {
+                  setSelectedChildId(child.id);
+                  setSelectedRouteId(child.routeId);
+                  setSelectedEtaStopId(undefined);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all shrink-0 whitespace-nowrap ${
                   isSelected ? 'clear-glass-btn-primary' : 'clear-glass-btn'
                 }`}
               >
@@ -313,11 +414,11 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
         </div>
       </div>
 
-      {/* Arrival Card */}
+      {/* Child Stop Arrival Progress Card */}
       <div className="clear-glass-card rounded-2xl p-3.5 space-y-2.5">
         <div className="flex items-baseline justify-between gap-2">
           <div className="min-w-0">
-            <span className="text-[10px] font-bold text-slate-500">Estimated Arrival</span>
+            <span className="text-[10px] font-bold text-slate-500">Child Stop ETA</span>
             <div className="text-2xl font-black text-[#304C64] tracking-tight leading-tight tabular-nums">
               {isBoarded ? 'En Route' : formatETADisplay(etaMinutes)}
             </div>
@@ -395,6 +496,19 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
         </div>
       </div>
 
+      {/* Dynamic Google Maps Routes API ETA Card */}
+      <RouteEtaCard
+        routes={routes}
+        selectedRoute={previewRoute}
+        selectedBus={previewBus}
+        selectedLocation={previewLocation}
+        activeTrip={previewTrip}
+        selectedStopId={selectedEtaStopId}
+        onSelectRoute={setSelectedRouteId}
+        onSelectStop={setSelectedEtaStopId}
+        onResolvedRoutePolyline={handleResolvedRoutePolyline}
+      />
+
       {/* Safety Guideline Card */}
       <div className="clear-glass-card rounded-2xl p-3 flex items-start gap-2.5">
         <ShieldCheck className="w-4 h-4 text-[#26788E] shrink-0 mt-0.5" />
@@ -408,20 +522,25 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
     </div>
   );
 
+  const mapBus = activeTab === 'routes' ? previewBus : assignedBus;
+  const mapLocation = activeTab === 'routes' ? previewLocation : activeLocation;
+  const mapRoute = previewRoute || assignedRoute;
+  const mapStopId = selectedEtaStopId || assignedStop?.id;
+
   // =========================================================================
   // RESPONSIVE SPLIT VIEW (Tablet & Desktop >= 768px)
   // =========================================================================
   if (isWideScreen) {
     return (
-      <div className="flex flex-1 h-full w-full overflow-hidden">
+      <div data-testid="role-section-guardian" className="flex flex-1 h-full w-full overflow-hidden">
         {/* Left: Interactive Map & Telemetry */}
         <section className="flex-1 h-full flex flex-col relative overflow-hidden p-3 pr-1.5">
           <div className="relative flex-1 w-full h-full rounded-2xl overflow-hidden">
             <LiveBusMap
-              bus={assignedBus}
-              location={activeLocation}
-              route={assignedRoute}
-              highlightStopId={assignedStop?.id}
+              bus={mapBus}
+              location={mapLocation}
+              route={mapRoute}
+              highlightStopId={mapStopId}
               assignedStudent={activeChild}
               isStale={isBusLocationStale}
               className="h-full w-full"
@@ -431,14 +550,14 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
             <div className="absolute top-2.5 left-2.5 right-12 z-[1000] clear-glass-card px-3 py-1.5 rounded-xl flex items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="w-2 h-2 rounded-full bg-[var(--accent-amber,#E2480C)] shrink-0" />
-                <span className="font-extrabold text-[#304C64] whitespace-nowrap">{assignedBus?.busNumber}</span>
+                <span className="font-extrabold text-[#304C64] whitespace-nowrap">{mapBus?.busNumber}</span>
                 <span className="text-slate-400">·</span>
-                <span className="text-slate-600 font-medium truncate">{assignedRoute?.name}</span>
+                <span className="text-slate-600 font-medium truncate">{mapRoute?.name}</span>
               </div>
               <div className="flex items-center gap-2.5 shrink-0 whitespace-nowrap">
                 <span className="flex items-center gap-1 text-[11px] font-bold text-[#304C64] tabular-nums">
                   <Gauge className="w-3 h-3" style={{ color: 'var(--primary)' }} />
-                  {Math.round(activeLocation?.speed || 25)} km/h
+                  {Math.round(mapLocation?.speed || 25)} km/h
                 </span>
                 <span className="font-extrabold text-[var(--accent-amber,#E2480C)] text-[11px] tabular-nums">
                   {formatETADisplay(etaMinutes)}
@@ -451,7 +570,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
               <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                 <Radio className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span className="font-bold text-[#304C64]">GPS Live</span>
-                <span className="text-slate-500">±{activeLocation?.accuracy || 6}m</span>
+                <span className="text-slate-500">±{mapLocation?.accuracy || 6}m</span>
               </div>
               <span className="text-slate-600 truncate min-w-0">
                 Stop: <strong className="text-[#304C64]">{assignedStop?.name}</strong>
@@ -460,37 +579,13 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
           </div>
         </section>
 
-        {/* Right: Master-Detail Panel */}
+        {/* Right: Parent Master-Detail Panel */}
         <section className="w-[380px] lg:w-[420px] shrink-0 h-full overflow-y-auto p-3 pl-1.5 space-y-3">
-          {/* Compact Clear Glass Segment Tabs */}
-          <div className="clear-glass-card p-1 rounded-full grid grid-cols-3 gap-1">
-            <button
-              onClick={() => onTabChange('home')}
-              className={`py-1.5 px-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                activeTab === 'home' || activeTab === 'map' ? 'clear-glass-btn-primary' : 'text-[#304C64]/75 hover:bg-white/30'
-              }`}
-            >
-              Tracking
-            </button>
-            <button
-              onClick={() => onTabChange('notifications')}
-              className={`py-1.5 px-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                activeTab === 'notifications' ? 'clear-glass-btn-primary' : 'text-[#304C64]/75 hover:bg-white/30'
-              }`}
-            >
-              Alerts
-            </button>
-            <button
-              onClick={() => onTabChange('profile')}
-              className={`py-1.5 px-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                activeTab === 'profile' ? 'clear-glass-btn-primary' : 'text-[#304C64]/75 hover:bg-white/30'
-              }`}
-            >
-              Profile
-            </button>
-          </div>
+          {renderRoleBanner()}
 
-          {activeTab === 'notifications'
+          {activeTab === 'routes'
+            ? renderRoutesEta()
+            : activeTab === 'alerts'
             ? renderNotifications()
             : activeTab === 'profile'
             ? renderProfile()
@@ -503,23 +598,42 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
   // =========================================================================
   // MOBILE VIEW (< 768px)
   // =========================================================================
-  if (activeTab === 'notifications') {
-    return <div className="p-3 pb-4">{renderNotifications()}</div>;
+  if (activeTab === 'routes') {
+    return (
+      <div data-testid="role-section-guardian" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderRoutesEta()}
+      </div>
+    );
+  }
+
+  if (activeTab === 'alerts') {
+    return (
+      <div data-testid="role-section-guardian" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderNotifications()}
+      </div>
+    );
   }
 
   if (activeTab === 'profile') {
-    return <div className="p-3 pb-4">{renderProfile()}</div>;
+    return (
+      <div data-testid="role-section-guardian" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderProfile()}
+      </div>
+    );
   }
 
   if (activeTab === 'map') {
     return (
-      <div className="relative h-full min-h-[400px] w-full overflow-hidden p-2">
+      <div data-testid="role-section-guardian" className="relative h-full min-h-[400px] w-full overflow-hidden p-2">
         <div className="relative w-full h-full rounded-2xl overflow-hidden">
           <LiveBusMap
-            bus={assignedBus}
-            location={activeLocation}
-            route={assignedRoute}
-            highlightStopId={assignedStop?.id}
+            bus={mapBus}
+            location={mapLocation}
+            route={mapRoute}
+            highlightStopId={mapStopId}
             assignedStudent={activeChild}
             isStale={isBusLocationStale}
             className="h-full w-full"
@@ -527,7 +641,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
 
           <div className="absolute top-2.5 left-2.5 right-12 z-[1000] clear-glass-card px-3 py-1.5 rounded-xl flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-extrabold text-[#304C64] whitespace-nowrap">{assignedBus?.busNumber}</span>
+              <span className="font-extrabold text-[#304C64] whitespace-nowrap">{mapBus?.busNumber}</span>
               <span className="text-slate-400">·</span>
               <span className="text-slate-600 font-medium truncate">{assignedStop?.name}</span>
             </div>
@@ -547,7 +661,7 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
             </div>
             <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600">
               <span className="truncate">Stop: <strong className="text-[#304C64]">{assignedStop?.name}</strong></span>
-              <span className="whitespace-nowrap shrink-0">{Math.round(activeLocation?.speed || 25)} km/h</span>
+              <span className="whitespace-nowrap shrink-0">{Math.round(mapLocation?.speed || 25)} km/h</span>
             </div>
           </div>
         </div>
@@ -556,18 +670,21 @@ export const GuardianView: React.FC<GuardianViewProps> = ({ activeTab, onTabChan
   }
 
   return (
-    <div className="p-3 space-y-2.5 pb-4 animate-in fade-in duration-200">
+    <div data-testid="role-section-guardian" className="p-3 space-y-2.5 pb-4 animate-in fade-in duration-200">
+      {renderRoleBanner()}
+
       <div className="relative">
         <LiveBusMap
-          bus={assignedBus}
-          location={activeLocation}
-          route={assignedRoute}
-          highlightStopId={assignedStop?.id}
+          bus={mapBus}
+          location={mapLocation}
+          route={mapRoute}
+          highlightStopId={mapStopId}
           assignedStudent={activeChild}
           isStale={isBusLocationStale}
           className="h-52 w-full"
         />
         <button
+          type="button"
           onClick={() => onTabChange('map')}
           className="absolute bottom-7 right-2.5 z-20 px-2.5 py-1 rounded-full clear-glass-btn text-[11px] font-bold text-[#304C64] flex items-center gap-1 whitespace-nowrap"
         >

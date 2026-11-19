@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { useApp } from '../../context/AppContext';
 import { LiveBusMap } from '../map/LiveBusMap';
 import { PaletteSelector } from '../common/PaletteSelector';
@@ -14,6 +15,8 @@ import {
   ExternalLink,
   Bell,
   Gauge,
+  GraduationCap,
+  Clock,
 } from 'lucide-react';
 
 interface StudentViewProps {
@@ -35,6 +38,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
   } = useApp();
 
   const isWideScreen = useMediaQuery('(min-width: 768px)');
+  const [passQrUrl, setPassQrUrl] = useState<string>('');
 
   const student = students.find((s) => s.id === 'student-1') || students[0];
   const assignedBus = buses.find((b) => b.id === student?.busId);
@@ -48,6 +52,25 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
     (r) => r.tripId === activeTrip?.id && r.studentId === student?.id
   );
   const isBoarded = boardingRecord?.status === 'boarded';
+
+  useEffect(() => {
+    let active = true;
+    const code = student?.studentIdCode || 'STU-8821';
+    const busNum = assignedBus?.busNumber || 'Bus 14';
+    QRCode.toDataURL(`ROUTEMATE:${code}:${busNum}`, {
+      width: 180,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#1e3547', light: '#ffffff' },
+    })
+      .then((url) => {
+        if (active) setPassQrUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [student?.studentIdCode, assignedBus?.busNumber]);
 
   let distanceMeters = 0;
   let etaMinutes = 0;
@@ -68,11 +91,32 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
     else if (distanceMeters <= 2000) proximityStage = 'early_warning';
   }
 
+  const renderRoleBanner = () => (
+    <div className="clear-glass-card rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl clear-glass-btn-primary flex items-center justify-center shrink-0">
+          <GraduationCap className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-xs font-extrabold text-[#304C64] tracking-tight truncate">
+            Student Bus Pass
+          </h2>
+          <p className="text-[10px] font-medium text-slate-500 truncate">
+            {student?.fullName} · {student?.grade} · {student?.studentIdCode}
+          </p>
+        </div>
+      </div>
+      <span className="text-[11px] font-extrabold text-[var(--primary)] whitespace-nowrap shrink-0">
+        {assignedBus?.busNumber || 'Bus 14'}
+      </span>
+    </div>
+  );
+
   // --- SUBVIEW: ALERTS ---
   const renderAlerts = () => (
     <div className="space-y-2.5 animate-in fade-in duration-200">
       <div>
-        <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">Bus Alerts</h2>
+        <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">My Bus Alerts</h2>
         <p className="text-[11px] text-slate-500">Live updates for {student?.fullName}</p>
       </div>
 
@@ -86,6 +130,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
           {notifications.map((n) => (
             <button
               key={n.id}
+              type="button"
               onClick={() => markNotificationRead(n.id)}
               className={`w-full text-left p-3 rounded-2xl transition-all text-xs ${
                 !n.isRead ? 'clear-glass-card ring-1 ring-[var(--primary)]/25' : 'clear-glass-btn opacity-80'
@@ -105,33 +150,58 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
     </div>
   );
 
-  // --- SUBVIEW: PROFILE ---
-  const renderProfile = () => (
+  // --- SUBVIEW: DIGITAL STUDENT TRANSIT PASS ---
+  const renderDigitalPass = () => (
     <div className="space-y-2.5 animate-in fade-in duration-200">
       <div>
         <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">Student Transit Pass</h2>
-        <p className="text-[11px] text-slate-500">Oakridge Community Academy ID</p>
+        <p className="text-[11px] text-slate-500">Scan on boarding at {assignedStop?.name}</p>
       </div>
 
       <div className="clear-glass-card rounded-2xl p-3.5 space-y-3">
         <div className="flex items-center gap-3">
           <Avatar src={student?.avatarUrl} name={student?.fullName || 'Student'} className="w-11 h-11" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h3 className="text-sm font-black text-[#304C64] truncate">{student?.fullName}</h3>
             <p className="text-[11px] text-slate-500 truncate">
               {student?.grade} · ID: {student?.studentIdCode}
             </p>
           </div>
+          <span className="text-[10px] font-extrabold text-emerald-700 whitespace-nowrap">
+            {isBoarded ? 'Boarded' : 'Valid Pass'}
+          </span>
         </div>
 
-        <div className="pt-2.5 border-t border-white/45 grid grid-cols-2 gap-2 text-xs">
+        {/* Scannable Boarding QR Card */}
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/50 border border-white/80">
+          <div className="w-20 h-20 rounded-xl bg-white p-1.5 border border-slate-200/70 shrink-0 flex items-center justify-center">
+            {passQrUrl ? (
+              <img
+                src={passQrUrl}
+                alt={`Student boarding pass QR for ${student?.studentIdCode}`}
+                data-testid="student-pass-qr"
+                className="w-full h-full object-contain rounded"
+              />
+            ) : (
+              <div className="w-full h-full bg-slate-100 animate-pulse rounded" />
+            )}
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-extrabold text-[#304C64] font-mono">{student?.studentIdCode}</p>
+            <p className="text-[11px] text-slate-600 leading-snug">
+              Show this digital transit pass to your driver when boarding {assignedBus?.busNumber}.
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-1 grid grid-cols-2 gap-2 text-xs">
           <div className="p-2.5 rounded-xl bg-white/25 border border-white/60">
             <span className="text-[10px] text-slate-500 font-bold block">Assigned Bus</span>
             <p className="font-extrabold text-[#304C64] mt-0.5">{assignedBus?.busNumber}</p>
           </div>
           <div className="p-2.5 rounded-xl bg-white/25 border border-white/60">
             <span className="text-[10px] text-slate-500 font-bold block">Pickup Time</span>
-            <p className="font-extrabold text-[#304C64] mt-0.5">{assignedStop?.scheduledTime}</p>
+            <p className="font-extrabold text-[#304C64] mt-0.5 tabular-nums">{assignedStop?.scheduledTime}</p>
           </div>
         </div>
       </div>
@@ -148,6 +218,50 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
             Stay 5 steps back from the curb while waiting. Always wait until the bus makes a full stop before boarding.
           </p>
         </div>
+      </div>
+    </div>
+  );
+
+  // --- SUBVIEW: DESKTOP ROUTE STOPS SCHEDULE ---
+  const renderStopSchedule = () => (
+    <div className="space-y-2.5 animate-in fade-in duration-200">
+      <div>
+        <h2 className="text-sm font-extrabold text-[#304C64] tracking-tight">My Route Schedule</h2>
+        <p className="text-[11px] text-slate-500 truncate">{assignedRoute?.name}</p>
+      </div>
+
+      <div className="space-y-2">
+        {(assignedRoute?.stops || []).map((st) => {
+          const isMyStop = st.id === assignedStop?.id;
+          return (
+            <div
+              key={st.id}
+              className={`clear-glass-card rounded-2xl p-3 flex items-center justify-between gap-2 text-xs ${
+                isMyStop ? 'ring-1 ring-[var(--primary)]' : ''
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0 ${
+                    isMyStop ? 'clear-glass-btn-primary' : 'clear-glass-btn text-[#304C64]'
+                  }`}
+                >
+                  {st.sequenceOrder}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-bold text-[#304C64] truncate">
+                    {st.name} {isMyStop ? '· Your Stop' : ''}
+                  </p>
+                  <p className="text-[10px] text-slate-500 truncate">{st.address}</p>
+                </div>
+              </div>
+              <span className="font-bold text-[#26788E] whitespace-nowrap shrink-0 tabular-nums flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {st.scheduledTime}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -189,11 +303,11 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
             </div>
           ) : (
             <div>
-              <span className="text-[10px] font-bold text-slate-500">Arrival Countdown</span>
+              <span className="text-[10px] font-bold text-slate-500">Personal Arrival Countdown</span>
               <div className="text-2xl font-black tracking-tight my-0.5 tabular-nums text-[var(--primary)]">
                 {formatETADisplay(etaMinutes)}
               </div>
-              <p className="text-[11px] text-slate-600 font-medium">
+              <p className="text-[11px] text-slate-600 font-medium tabular-nums">
                 {distanceMeters > 1000
                   ? `${(distanceMeters / 1000).toFixed(1)} km away`
                   : `${distanceMeters}m away`}
@@ -207,7 +321,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
             <MapPin className="w-3 h-3 shrink-0" style={{ color: 'var(--primary)' }} />
             <span className="truncate text-[#304C64] font-medium">{assignedStop?.name}</span>
           </div>
-          <span className="font-bold text-[#304C64] whitespace-nowrap shrink-0">
+          <span className="font-bold text-[#304C64] whitespace-nowrap shrink-0 tabular-nums">
             {assignedStop?.scheduledTime}
           </span>
         </div>
@@ -225,10 +339,11 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
           </div>
         </div>
         <button
-          onClick={() => onTabChange('profile')}
-          className="clear-glass-btn px-2.5 py-1 rounded-full text-[11px] font-bold text-[var(--primary)] whitespace-nowrap shrink-0"
+          type="button"
+          onClick={() => onTabChange('pass')}
+          className="clear-glass-btn px-2.5 py-1.5 rounded-full text-[11px] font-bold text-[var(--primary)] whitespace-nowrap shrink-0"
         >
-          View ID
+          View ID Pass
         </button>
       </div>
 
@@ -249,7 +364,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
   // =========================================================================
   if (isWideScreen) {
     return (
-      <div className="flex flex-1 h-full w-full overflow-hidden">
+      <div data-testid="role-section-student" className="flex flex-1 h-full w-full overflow-hidden">
         {/* Left: Live Map */}
         <section className="flex-1 h-full flex flex-col relative overflow-hidden p-3 pr-1.5">
           <div className="relative flex-1 w-full h-full rounded-2xl overflow-hidden">
@@ -286,7 +401,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
                 <MapPin className="w-3.5 h-3.5 text-[var(--primary)] shrink-0" />
                 <span className="font-bold text-[#304C64] truncate">{assignedStop?.name}</span>
               </div>
-              <span className="font-extrabold text-[var(--accent-amber,#E2480C)] whitespace-nowrap shrink-0">
+              <span className="font-extrabold text-[var(--accent-amber,#E2480C)] whitespace-nowrap shrink-0 tabular-nums">
                 {distanceMeters > 1000 ? `${(distanceMeters / 1000).toFixed(1)} km` : `${distanceMeters}m`} away
               </span>
             </div>
@@ -295,30 +410,14 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
 
         {/* Right: Student Details */}
         <section className="w-[380px] lg:w-[420px] shrink-0 h-full overflow-y-auto p-3 pl-1.5 space-y-3">
-          <div className="clear-glass-card p-1 rounded-full grid grid-cols-3 gap-1">
-            {[
-              { id: 'home', label: 'Home' },
-              { id: 'alerts', label: 'Alerts' },
-              { id: 'profile', label: 'Profile' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`py-1.5 px-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                  activeTab === tab.id || (tab.id === 'home' && activeTab === 'map')
-                    ? 'clear-glass-btn-primary'
-                    : 'text-[#304C64]/75 hover:bg-white/30'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {renderRoleBanner()}
 
           {activeTab === 'alerts'
             ? renderAlerts()
-            : activeTab === 'profile'
-            ? renderProfile()
+            : activeTab === 'pass' || activeTab === 'profile'
+            ? renderDigitalPass()
+            : activeTab === 'map'
+            ? renderStopSchedule()
             : renderHomeContent()}
         </section>
       </div>
@@ -329,16 +428,26 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
   // MOBILE VIEW (< 768px)
   // =========================================================================
   if (activeTab === 'alerts') {
-    return <div className="p-3 pb-4">{renderAlerts()}</div>;
+    return (
+      <div data-testid="role-section-student" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderAlerts()}
+      </div>
+    );
   }
 
-  if (activeTab === 'profile') {
-    return <div className="p-3 pb-4">{renderProfile()}</div>;
+  if (activeTab === 'pass' || activeTab === 'profile') {
+    return (
+      <div data-testid="role-section-student" className="p-3 space-y-2.5 pb-4">
+        {renderRoleBanner()}
+        {renderDigitalPass()}
+      </div>
+    );
   }
 
   if (activeTab === 'map') {
     return (
-      <div className="relative h-full min-h-[400px] w-full overflow-hidden p-2">
+      <div data-testid="role-section-student" className="relative h-full min-h-[400px] w-full overflow-hidden p-2">
         <div className="relative w-full h-full rounded-2xl overflow-hidden">
           <LiveBusMap
             bus={assignedBus}
@@ -362,7 +471,9 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
   }
 
   return (
-    <div className="p-3 space-y-2.5 pb-4 animate-in fade-in duration-200">
+    <div data-testid="role-section-student" className="p-3 space-y-2.5 pb-4 animate-in fade-in duration-200">
+      {renderRoleBanner()}
+
       <div className="relative">
         <LiveBusMap
           bus={assignedBus}
@@ -374,6 +485,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ activeTab, onTabChange
           className="h-48 w-full"
         />
         <button
+          type="button"
           onClick={() => onTabChange('map')}
           className="absolute bottom-7 right-2.5 z-20 px-2.5 py-1 rounded-full clear-glass-btn text-[11px] font-bold text-[#304C64] flex items-center gap-1 whitespace-nowrap"
         >

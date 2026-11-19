@@ -10,7 +10,10 @@ import {
   runCoDriverTurn,
   runProactiveCheck,
 } from './server/coDriverService';
-import { computeGoogleTrafficRoutes } from './server/googleMapsService';
+import {
+  computeGoogleRouteEta,
+  computeGoogleTrafficRoutes,
+} from './server/googleMapsService';
 import { attachCoDriverLiveWebSocket } from './server/coDriverLiveService';
 
 const app = express();
@@ -473,6 +476,49 @@ app.post('/api/maps/compute-route', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({
       error: formatCoDriverError(err, 'Failed to compute Google Maps route.'),
+    });
+  }
+});
+
+// Dynamic route ETA calculation via Google Maps Routes API v2 (TRAFFIC_AWARE)
+app.post('/api/maps/route-eta', async (req: Request, res: Response) => {
+  try {
+    const { routeId, busId } = req.body || {};
+    const route =
+      db.routes.find((r: any) => r.id === routeId) ||
+      db.routes[0];
+    if (!route) {
+      return res.status(404).json({ error: 'Bus route not found.' });
+    }
+
+    const targetBusId = busId || route.assignedBusId || db.buses[0]?.id;
+    const currentLocation = targetBusId ? db.locations[targetBusId] : undefined;
+    const matchingTrip = db.trips.find(
+      (t: any) => t.routeId === route.id && t.status === 'active'
+    );
+
+    const currentStopIndex = matchingTrip?.currentStopIndex ?? 0;
+    const extraDelayMinutes = matchingTrip?.delayMinutes ?? 0;
+
+    const result = await computeGoogleRouteEta({
+      route,
+      currentLocation,
+      currentStopIndex,
+      extraDelayMinutes,
+    });
+
+    if (result.quotaExceeded) {
+      return res.status(429).json({
+        error: result.error || 'Google Maps Routes API quota exceeded.',
+        quotaExceeded: true,
+        eta: result.eta,
+      });
+    }
+
+    res.json({ eta: result.eta, quotaExceeded: false });
+  } catch (err: any) {
+    res.status(500).json({
+      error: formatCoDriverError(err, 'Failed to compute route ETA.'),
     });
   }
 });
